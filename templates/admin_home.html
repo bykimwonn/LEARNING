@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel · BT LEARNING{% endblock %}
+{% block content %}
+<h1>🛠️ Admin Panel</h1>
+<p class="muted">Manage classes, teachers and student rosters. Students never need to sign up manually.</p>
+
+{% if roster_status %}<div class="flash info">{{ roster_status }}</div>{% endif %}
+
+<div class="grid g2">
+  <div class="card">
+    <h2>Upload Student Roster (CSV)</h2>
+    <p class="small muted">CSV columns: <b>student_id, name, class_name, subjects(comma separated, optional)</b>.
+       Students get temporary password <b>btlearn123</b> and are forced to change it on first login.</p>
+    <form method="post" action="{{ url_for('admin_upload_roster') }}" enctype="multipart/form-data">
+      <label>Assign to existing class (optional)</label>
+      <select name="class_id">
+        <option value="">— Auto-detect from class_name —</option>
+        {% for c in classes %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      </select>
+      <label>CSV file</label>
+      <input type="file" name="roster" accept=".csv">
+      <div style="margin-top:14px"><button class="btn small">Upload roster</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Create Class</h2>
+    <form method="post" action="{{ url_for('admin_add_class') }}">
+      <label>Class name</label>
+      <input name="name" placeholder="e.g. Form 2A" required>
+      <label>Subjects (comma-separated)</label>
+      <input name="subjects" placeholder="Mathematics, Biology, English">
+      <div style="margin-top:14px"><button class="btn small">Create class</button></div>
+    </form>
+    <hr>
+    <h2>Add Teacher</h2>
+    <form method="post" action="{{ url_for('admin_add_teacher') }}">
+      <label>Teacher name</label>
+      <input name="name" placeholder="e.g. Mrs Chikafu" required>
+      <label>Email</label>
+      <input name="email" placeholder="teacher@school.co.zw" required>
+      <label>Temporary password</label>
+      <input name="password" value="teacher123">
+      <label>Assigned class</label>
+      <select name="class_id">
+        <option value="">— None —</option>
+        {% for c in classes %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+      </select>
+      <div style="margin-top:14px"><button class="btn small">Add teacher</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>📚 Classes</h2>
+  {% if classes %}
+  <table>
+    <tr><th>Class</th><th>Subjects</th></tr>
+    {% for c in classes %}
+      <tr><td>{{ c.name }}</td>
+      <td>{% set subs = class_subjects(c.id) %}
+          {% for s in subs %}<span class="pill">{{ s }}</span> {% else %}<span class="muted small">no subjects</span>{% endfor %}
+      </td></tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">No classes yet.</p>{% endif %}
+</div>
+
+<div class="grid g2">
+  <div class="card">
+    <h2>👩‍🏫 Teachers</h2>
+    {% if teachers %}
+    <table>
+      <tr><th>Name</th><th>Email</th><th>Class</th></tr>
+      {% for t in teachers %}
+        <tr><td>{{ t.name }}</td><td>{{ t.email }}</td>
+            <td>{% for c in classes %}{% if c.id == t.class_id %}{{ c.name }}{% endif %}{% endfor %}</td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">No teachers yet.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>🎓 Students</h2>
+    <p class="muted small">{{ students|length }} school students · {{ independents|length }} independent learners</p>
+    {% if students %}
+    <table>
+      <tr><th>Student ID</th><th>Name</th></tr>
+      {% for s in students %}<tr><td>{{ s.student_id }}</td><td>{{ s.name }}</td></tr>{% endfor %}
+    </table>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

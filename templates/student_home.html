@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div>
+    <h1>Hello, {{ user.name }} 👋</h1>
+    <p class="muted">
+      {% if user.role == 'school_student' %}Student ID: <b>{{ user.student_id }}</b> ·{% endif %}
+      ELO <b>{{ user.elo }}</b> · <b>{{ user.points }}</b> pts ·
+      Study window {{ "%02d:00"|format(user.study_start_hour) }}–{{ "%02d:00"|format(user.study_end_hour) }}
+    </p>
+  </div>
+  <a class="btn small ghost" href="{{ url_for('student_setup') }}">⚙️ Preferences</a>
+</div>
+
+<div class="card">
+  <h2>📖 Your Subjects</h2>
+  <div class="grid g2">
+    {% for s in subjects %}
+    <div class="card" style="box-shadow:none;background:#fbfcff">
+      <div class="spread">
+        <b style="font-size:18px">{{ s.subject }}</b>
+        <span class="pill {{ 'g' if s.total and s.done == s.total else 'b' }}">
+          {{ s.done }}/{{ s.total }} concepts</span>
+      </div>
+      <div class="progressbar {{ 'good' if s.total and s.done == s.total else '' }}" style="margin:12px 0">
+        <div style="width:{{ (s.done * 100 / s.total) if s.total else 0 }}%"></div>
+      </div>
+      <div class="row">
+        <a class="btn small" href="{{ url_for('learn', subject=s.subject) }}">Learn</a>
+        <a class="btn small ghost" href="{{ url_for('practice', subject=s.subject) }}">Past papers</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="grid g2">
+  <div class="card">
+    <h2>⚠️ Your Weaknesses</h2>
+    {% if weaknesses %}
+    <table>
+      <tr><th>Subject</th><th>Concept</th><th>Fails</th></tr>
+      {% for w in weaknesses %}
+      <tr><td>{{ w.subject }}</td><td>{{ w.concept }}</td>
+          <td><span class="pill r">{{ w.fail_count }}×</span></td></tr>
+      {% endfor %}
+    </table>
+    {% else %}<p class="muted">No weak areas detected. Keep up the great work! 🎉</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>📤 Upload your own notes</h2>
+    <form method="post" action="{{ url_for('student_upload') }}" enctype="multipart/form-data">
+      <label>Title</label>
+      <input name="title" placeholder="e.g. Poetry notes" required>
+      <label>Subject</label>
+      <input name="subject" placeholder="e.g. English" required>
+      <label>File (.txt, .md, .pdf)</label>
+      <input type="file" name="file" accept=".txt,.md,.pdf">
+      <label>…or paste content</label>
+      <textarea name="content" placeholder="Paste your notes here…"></textarea>
+      <div style="margin-top:12px"><button class="btn small">Upload to AI index</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,36 @@
+# Render Blueprint — BT LEARNING
+# Deploys the web app + a managed PostgreSQL database.
+#
+# To deploy:
+#   1. Push this project to a GitHub repo.
+#   2. In Render: "New" -> "Blueprint" -> connect the repo.
+#   3. After creation, set ADMIN_EMAIL and ADMIN_PASSWORD in the web service's
+#      Environment tab, then Render auto-redeploys to create the admin account.
+#      (Leave ADMIN_PASSWORD empty until you're ready — never commit it here.)
+databases:
+  - name: bt-learning-db
+    plan: free
+    databaseName: btlearning
+
+services:
+  - type: web
+    name: bt-learning
+    runtime: python
+    plan: free
+    autoDeploy: true
+    buildCommand: ./build.sh
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 60
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: bt-learning-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_NAME
+        value: Administrator

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Diagnostic · {{ subject }} · BT LEARNING{% endblock %}
+{% block content %}
+<h1>🩺 Automated Diagnostic Report</h1>
+<p class="muted">Subject: <b>{{ subject }}</b> · Generated automatically from your
+   performance during lessons. Weak areas are also shared with your teacher.</p>
+
+<div class="card">
+  {% if weaknesses %}
+  <table>
+    <tr><th>Concept</th><th>Failures</th><th>Status</th></tr>
+    {% for w in weaknesses %}
+    <tr>
+      <td>{{ w.concept }}</td>
+      <td><span class="pill r">{{ w.fail_count }}×</span></td>
+      <td><span class="pill o">needs review</span></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p class="muted">No knowledge gaps detected in this subject. 🎉 Keep up the great work!</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>💡 What to do next</h2>
+  <p class="small">Revisit the flagged concepts in the lesson, then retake the knowledge
+     check. Once you master a concept, the weakness is automatically cleared from your report.</p>
+  <a class="btn small" href="{{ url_for('learn', subject=subject) }}">Back to lesson</a>
+</div>
+{% endblock %}

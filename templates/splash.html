@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Welcome · BT LEARNING{% endblock %}
+{% block content %}
+<div class="hero">
+  <div class="owner-chip">👑 Owned by <b>{{ owner }}</b></div>
+  <h1>BT LEARNING</h1>
+  <p>Your AI-powered study companion. Learn from your own notes, unlock concepts
+     step by step, master past exams, and rise up the class rankings.</p>
+  <a class="btn" href="{{ url_for('choose') }}">Get Started</a>
+</div>
+{% endblock %}

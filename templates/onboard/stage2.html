@@ -1,0 +1,41 @@
+{% extends "onboard/_base.html" %}
+{% block title %}Interests · BT LEARNING{% endblock %}
+{% block content %}
+<h1>🎯 Stage 2 · Interest & Analogy Profiler</h1>
+<p class="sub">The AI tailors every explanation to <i>you</i>. Pick what you love so your tutor
+   can explain difficult ideas using examples you already understand.</p>
+
+<form method="post">
+  <label>🎨 Primary interests &amp; hobbies (select as many as you like)</label>
+  <div class="pill-row">
+    {% for t in tags %}
+      <label class="tag"><input type="checkbox" name="tags" value="{{ t }}"
+        {% if t.lower() in (user.interests or '').lower() %}checked{% endif %}> {{ t }}</label>
+    {% endfor %}
+  </div>
+
+  <label>✍️ Or add your own (comma-separated)</label>
+  <input name="interests" value="{{ user.interests }}" placeholder="e.g. Chess, Industrial Mechanics, Software Engineering">
+
+  <label>🧠 Preferred learning mode</label>
+  <div class="mode">
+    <label><input type="radio" name="learning_mode" value="video"
+      {{ 'checked' if user.learning_mode=='video' else '' }}><br>📹<br><b>Video-heavy</b><br>
+      <span class="small muted">Learn from rich media + explanations</span></label>
+    <label><input type="radio" name="learning_mode" value="text"
+      {{ 'checked' if user.learning_mode=='text' else '' }}><br>📄<br><b>Text-first</b><br>
+      <span class="small muted">Prefer reading concepts in depth</span></label>
+    <label><input type="radio" name="learning_mode" value="quiz"
+      {{ 'checked' if user.learning_mode=='quiz' else '' }}><br>🎯<br><b>Practice-driven</b><br>
+      <span class="small muted">Learn by answering questions</span></label>
+  </div>
+
+  <div class="hintbox">💡 <b>Example:</b> list <i>Chess</i> and the AI explains tactical planning
+     using board-control analogies; choose <i>Industrial Mechanics</i> and it explains system
+     inputs &amp; outputs using engine components.</div>
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+    <button class="btn" type="submit">Continue → Subjects &amp; Notes</button>
+  </div>
+</form>
+{% endblock %}

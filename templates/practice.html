@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Past papers · {{ subject }} · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🎯 Past Papers · {{ subject }}</h1>
+    <p class="muted">Questions drawn only from uploaded past exam papers. Answer correctly to earn ELO.</p></div>
+  <a class="btn small ghost" href="{{ url_for('learn', subject=subject) }}">← Back to lesson</a>
+</div>
+
+{% if papers %}
+<div class="card">
+  <h2>📄 Available papers</h2>
+  {% for p in papers %}<p class="kv">• <b>{{ p.title }}</b> <span class="muted small">({{ p.created_at[:16] }})</span></p>{% endfor %}
+</div>
+{% endif %}
+
+{% if feedback %}<div class="flash {{ 'success' if feedback.correct else 'error' }}">{{ feedback.msg }}</div>{% endif %}
+
+{% if qs %}
+<div class="qblock">
+  <p><b>Question:</b> {{ qs[0].question }}</p>
+  <form method="post" action="{{ url_for('practice_answer', subject=subject) }}">
+    <input type="hidden" name="qid" value="{{ qs[0].id }}">
+    {% for opt in qs[0].options %}
+      <label class="optlabel"><input type="radio" name="choice" value="{{ loop.index0 }}" required>
+        {{ opt }}</label>
+    {% endfor %}
+    <button class="btn small">Submit answer</button>
+  </form>
+  <p class="small muted">{{ qs|length }} question(s) in this paper set.</p>
+</div>
+{% else %}
+<div class="card center"><p class="muted">No past exam papers uploaded for this subject yet.</p></div>
+{% endif %}
+{% endblock %}

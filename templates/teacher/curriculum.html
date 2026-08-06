@@ -1,0 +1,120 @@
+{% extends "teacher/_base.html" %}
+{% block title %}Curriculum Hub · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>Curriculum Hub</h1>
+    <p class="muted">Control exactly what the AI is allowed to teach for <b>{{ sel.subject }}</b>.</p></div>
+</div>
+
+<div class="row" style="gap:8px;margin:14px 0">
+  <a class="btn small {{ 'ghost' if tab!='notes' }}" href="{{ url_for('teacher_curriculum', tab='notes') }}">📘 Notes Category</a>
+  <a class="btn small {{ 'ghost' if tab!='exams' }}" href="{{ url_for('teacher_curriculum', tab='exams') }}">📝 Exams Category</a>
+</div>
+
+{% if tab=='notes' %}
+<!-- ================= NOTES TAB ================= -->
+<div class="card" id="uploadzone">
+  <h2>Upload Zone — Notes</h2>
+  <p class="small muted">Drag &amp; drop a PDF, Word document or plain text, or paste below.
+     The AI chunks the document into digestible concepts and indexes them.</p>
+  <form method="post" action="{{ url_for('teacher_upload') }}"
+        enctype="multipart/form-data" style="border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center">
+    <input type="hidden" name="next" value="{{ request.full_path }}">
+    <input type="hidden" name="category" value="notes">
+    <input type="hidden" name="subject" value="{{ sel.subject }}">
+    <div style="font-size:34px">📥</div>
+    <p class="muted"><b>Drop files here</b> or click to browse</p>
+    <input type="file" name="file" accept=".txt,.md,.pdf,.docx" style="max-width:420px;margin:0 auto">
+    <div style="margin-top:12px" class="muted small">— or paste content —</div>
+    <textarea name="content" placeholder="Paste your lesson content here…" style="margin-top:8px"></textarea>
+    <label style="text-align:left">Title</label>
+    <input name="title" placeholder="e.g. Chapter 4 — Solving Equations" required>
+    <div style="margin-top:14px"><button class="btn">Ingest into AI</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Library — Active Notes</h2>
+  <p class="small muted">Enable / disable what the AI may use for lessons. Disabled notes are hidden from students.</p>
+  <table>
+    <tr><th>Document</th><th>Status</th><th>Concepts</th><th>Added</th><th>Controls</th></tr>
+    {% for n in notes %}
+    <tr>
+      <td><b>{{ n.title }}</b><br><span class="muted small">{{ n.subject }}</span></td>
+      <td>
+        {% if n.status=='processing' %}
+          <span class="pill o">⏳ Processing</span>
+        {% elif n.enabled %}
+          <span class="pill g">● Active</span>
+        {% else %}
+          <span class="pill">○ Disabled</span>
+        {% endif %}
+      </td>
+      <td class="muted">{{ n.chunk_count or '—' }}</td>
+      <td class="muted small">{{ n.created_at[:16] }}</td>
+      <td>
+        <form method="post" action="{{ url_for('teacher_note_toggle', nid=n.id) }}" style="display:inline">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <button class="btn small ghost">{{ 'Disable' if n.enabled else 'Enable' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('teacher_note_delete', nid=n.id) }}" style="display:inline">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <button class="btn small ghost" style="color:var(--bad)">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="muted">No notes uploaded for this subject yet.</td></tr>{% endfor %}
+  </table>
+</div>
+
+{% else %}
+<!-- ================= EXAMS TAB ================= -->
+<div class="card">
+  <h2>Upload Zone — Past Exam Papers</h2>
+  <p class="small muted">These are tagged specifically for the AI to use during <b>Exam Simulation</b>
+     sessions, not regular lessons.</p>
+  <form method="post" action="{{ url_for('teacher_upload') }}"
+        enctype="multipart/form-data" style="border:2px dashed var(--line);border-radius:14px;padding:22px;text-align:center">
+    <input type="hidden" name="next" value="{{ request.full_path }}">
+    <input type="hidden" name="category" value="past_exams">
+    <input type="hidden" name="subject" value="{{ sel.subject }}">
+    <div style="font-size:34px">📝</div>
+    <p class="muted"><b>Drop past papers here</b> or click to browse</p>
+    <input type="file" name="file" accept=".txt,.md,.pdf,.docx" style="max-width:420px;margin:0 auto">
+    <div style="margin-top:12px" class="muted small">— or paste content —</div>
+    <textarea name="content" placeholder="Paste the exam paper here…" style="margin-top:8px"></textarea>
+    <label style="text-align:left">Title</label>
+    <input name="title" placeholder="e.g. Mid-term Past Paper 2024" required>
+    <div style="margin-top:14px"><button class="btn">Ingest past paper</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Past Papers Library</h2>
+  <table>
+    <tr><th>Paper</th><th>Status</th><th>Added</th><th>Controls</th></tr>
+    {% for n in exams %}
+    <tr>
+      <td><b>{{ n.title }}</b><br><span class="muted small">{{ n.subject }}</span></td>
+      <td>
+        {% if n.status=='processing' %}<span class="pill o">⏳ Processing</span>
+        {% elif n.enabled %}<span class="pill g">● Active</span>
+        {% else %}<span class="pill">○ Disabled</span>{% endif %}
+      </td>
+      <td class="muted small">{{ n.created_at[:16] }}</td>
+      <td>
+        <form method="post" action="{{ url_for('teacher_note_toggle', nid=n.id) }}" style="display:inline">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <button class="btn small ghost">{{ 'Disable' if n.enabled else 'Enable' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('teacher_note_delete', nid=n.id) }}" style="display:inline">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <button class="btn small ghost" style="color:var(--bad)">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="4" class="muted">No past papers for this subject yet.</td></tr>{% endfor %}
+  </table>
+</div>
+{% endif %}
+{% endblock %}

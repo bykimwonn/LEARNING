@@ -1,0 +1,70 @@
+{% extends "onboard/_base.html" %}
+{% block title %}Schedule Builder · BT LEARNING{% endblock %}
+{% block content %}
+<h1>🗓️ Stage 4 · Smart Schedule Builder</h1>
+<p class="sub">Set your weekly study availability. The <b>Timetable Gatekeeper</b> will use this
+   to greet you during study time and hold you off between sessions.</p>
+
+<form method="post">
+  <label>⏱️ Session pacing</label>
+  <div class="row" style="align-items:flex-end;gap:12px">
+    <div style="flex:1"><label class="small">Study block (min)</label>
+      <input type="number" name="session_length" min="15" max="180" step="5"
+             value="{{ user.session_length }}"></div>
+    <div style="flex:1"><label class="small">Break (min)</label>
+      <input type="number" name="break_length" min="5" max="60" step="5"
+             value="{{ user.break_length }}"></div>
+  </div>
+
+  <label style="margin-top:18px">📅 Weekly availability — pick open study hours per day</label>
+  {% set sch = {} %}
+  {% for b in schedule %}{% if sch.update({b.day: b}) %}{% endif %}{% endfor %}
+  {% for day in range(7) %}
+  {% set blk = sch.get(day) %}
+  <div class="sched-row">
+    <span class="day">{{ days[day] }}</span>
+    <label class="small" style="margin:0">Start</label>
+    <select name="start_{{ day }}">
+      {% for h in range(6,24) %}
+        <option value="{{ h }}" {{ 'selected' if blk and blk.start_hour==h }}>{{ '%02d:00'|format(h) }}</option>
+      {% endfor %}
+    </select>
+    <label class="small" style="margin:0">End</label>
+    <select name="end_{{ day }}">
+      {% for h in range(7,25) %}
+        <option value="{{ h }}" {{ 'selected' if blk and blk.end_hour==h }}>{{ '%02d:00'|format(h) }}</option>
+      {% endfor %}
+    </select>
+    <label class="small" style="margin:0">Subject</label>
+    <select name="subject_{{ day }}">
+      <option value="">— Auto / any —</option>
+      {% for s in subjects %}
+        <option value="{{ s }}" {{ 'selected' if blk and blk.subject==s }}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endfor %}
+
+  <div class="hintbox">
+    🤖 <b>Auto-Balance:</b> Let the AI distribute your study hours evenly across subjects,
+    weighted by how many concepts each subject has. <button class="btn small ghost"
+    type="button" onclick="autoBalance()">⚖️ Auto-balance subjects</button>
+    <div class="small muted" id="allocNote" style="margin-top:6px"></div>
+  </div>
+
+  <div style="display:flex;justify-content:space-between;gap:10px;margin-top:16px">
+    <a class="btn ghost" href="{{ url_for('onboard_stage3') }}">← Back</a>
+    <button class="btn" type="submit">Compile schedule → Launch</button>
+  </div>
+</form>
+
+<script>
+function autoBalance(){
+  fetch('{{ url_for("onboard_auto_balance") }}',{method:'POST'}).then(r=>r.json()).then(d=>{
+    const note=document.getElementById('allocNote');
+    const txt=Object.entries(d).map(([k,v])=>k+': '+v+'%').join(' · ');
+    note.textContent='Suggested weighting: '+txt+' — adjust your daily subject picks to match.';
+  });
+}
+</script>
+{% endblock %}

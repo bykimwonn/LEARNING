@@ -1,0 +1,65 @@
+{% extends "onboard/_base.html" %}
+{% block title %}Subjects & Notes · BT LEARNING{% endblock %}
+{% block content %}
+<h1>📚 Stage 3 · Build Your Knowledge Base</h1>
+<p class="sub">Create your custom subject folders and upload your study materials. The AI chunks
+   and indexes each document so it can teach and test you from your own notes.</p>
+
+<div class="folder">
+  <h3>➕ Add a Subject Folder</h3>
+  <form method="post" action="{{ url_for('onboard_add_subject') }}" class="row">
+    <input name="name" placeholder="e.g. Chemical Kinetics, Computer Operations, Mathematics"
+           style="flex:1" required>
+    <button class="btn small">Create subject</button>
+  </form>
+</div>
+
+{% for s in subjects %}
+<div class="folder">
+  <h3>📁 {{ s }}</h3>
+  <form method="post" action="{{ url_for('onboard_upload') }}"
+        enctype="multipart/form-data" style="border:2px dashed var(--line);border-radius:12px;padding:14px;text-align:center">
+    <input type="hidden" name="subject" value="{{ s }}">
+    <div style="font-size:28px">📥</div>
+    <p class="muted small" style="margin:4px 0"><b>Drop files here</b> or click to browse</p>
+    <div class="row" style="justify-content:center">
+      <input type="file" name="file" accept=".txt,.md,.pdf,.docx" style="max-width:300px">
+      <label class="small" style="margin:0">Tag as
+        <select name="category">
+          <option value="notes">📘 Reading Notes</option>
+          <option value="past_exams">📝 Past Papers / Question Bank</option>
+        </select></label>
+    </div>
+    <div class="muted small" style="margin:8px 0">— or paste content —</div>
+    <input name="title" placeholder="Document title" style="margin:4px 0">
+    <textarea name="content" placeholder="Paste notes or exam questions here…"></textarea>
+    <div style="margin-top:8px"><button class="btn small">Upload &amp; chunk</button></div>
+  </form>
+
+  {% set docs = subject_docs.get(s, []) %}
+  {% if docs %}
+  <table style="margin-top:10px">
+    <tr><th>Document</th><th>Type</th><th>Status</th><th>Concepts</th></tr>
+    {% for d in docs %}
+    <tr>
+      <td>{{ d.title }}</td>
+      <td><span class="pill {{ 'o' if d.category=='past_exams' else 'b' }}">
+        {{ '📝 Past' if d.category=='past_exams' else '📘 Notes' }}</span></td>
+      <td>{% if d.status=='processing' %}<span class="pill o">⏳ Processing</span>
+          {% else %}<span class="pill g">● Indexed</span>{% endif %}</td>
+      <td class="muted">{{ d.chunk_count or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted small" style="margin-top:8px">No documents yet in this folder.</p>{% endif %}
+</div>
+{% else %}
+<p class="muted">No subjects yet — create your first subject folder above.</p>
+{% endfor %}
+
+<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+  <form method="post" action="{{ url_for('onboard_stage3') }}">
+    <button class="btn" type="submit">Continue → Schedule Builder</button>
+  </form>
+</div>
+{% endblock %}

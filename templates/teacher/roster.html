@@ -1,0 +1,37 @@
+{% extends "teacher/_base.html" %}
+{% block title %}Settings & Roster · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>⚙️ Settings &amp; Roster Management</h1>
+    <p class="muted">Students are assigned to your class by the School Admin. Manage their access here.</p></div>
+</div>
+
+<div class="card">
+  <h2>👥 Student List — {{ sel.class_name }} · {{ sel.subject }}</h2>
+  <p class="small muted">Reset a student's password if they forget their login. They'll be forced to set a new one on next login.</p>
+  <table>
+    <tr><th>Student ID</th><th>Name</th><th>Streak</th><th>ELO</th><th>Password Reset</th></tr>
+    {% for s in students %}
+    <tr>
+      <td class="mono" style="background:none;color:var(--brand)">{{ s.student_id }}</td>
+      <td><b>{{ s.name }}</b></td>
+      <td>🔥 {{ s.streak }} day</td>
+      <td>{{ s.elo }}</td>
+      <td>
+        <form method="post" action="{{ url_for('teacher_reset_password', uid=s.id) }}">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <button class="btn small warn">↻ Reset password</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="muted">No students in this class.</td></tr>{% endfor %}
+  </table>
+</div>
+
+<div class="card">
+  <h2>ℹ️ Roster source</h2>
+  <p class="muted small">Student accounts are provisioned by the <b>School Admin</b> via CSV roster
+     upload — students never sign themselves up for a school class. This list updates automatically.</p>
+  <a class="btn small ghost" href="{{ url_for('teacher_curriculum') }}">Manage teaching materials →</a>
+</div>
+{% endblock %}

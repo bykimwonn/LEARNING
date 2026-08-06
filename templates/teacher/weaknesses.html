@@ -1,0 +1,45 @@
+{% extends "teacher/_base.html" %}
+{% block title %}AI Intervention · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🧠 AI Intervention &amp; Weakness Reports</h1>
+    <p class="muted">Deep analytics on where <b>{{ sel.subject }}</b> students struggle.
+       Click a student to open their granular AI report.</p></div>
+</div>
+
+<div class="card">
+  <div class="row" style="margin-bottom:12px">
+    <input id="search" placeholder="🔍 Search students by name or ID…" style="max-width:340px">
+    <div class="row" style="gap:8px">
+      <span class="pill g">● Good</span>
+      <span class="pill o">● Watch</span>
+      <span class="pill r">● Struggling</span>
+    </div>
+  </div>
+  <table id="roster">
+    <tr><th>Student</th><th>Status</th><th>Weak spots</th><th>Max fails</th><th></th></tr>
+    {% for s in students %}
+    <tr class="srow" data-name="{{ s.name|lower }}" data-id="{{ s.student_id|lower }}">
+      <td><b>{{ s.name }}</b><br><span class="muted small">{{ s.student_id }}</span></td>
+      <td>
+        {% if s.status=='red' %}<span class="pill r">● Struggling</span>
+        {% elif s.status=='yellow' %}<span class="pill o">● Watch</span>
+        {% else %}<span class="pill g">● Good</span>{% endif %}
+      </td>
+      <td>{{ s.weak_count }}</td>
+      <td>{% if s.max_fails %}<span class="pill r">{{ s.max_fails }}×</span>{% else %}—{% endif %}</td>
+      <td><a class="btn small ghost" href="{{ url_for('teacher_student_detail', uid=s.id) }}">Open report →</a></td>
+    </tr>
+    {% else %}<tr><td colspan="5" class="muted">No students in this class.</td></tr>{% endfor %}
+  </table>
+</div>
+
+<script>
+document.getElementById('search').addEventListener('input', function(){
+  var q=this.value.toLowerCase();
+  document.querySelectorAll('#roster .srow').forEach(function(r){
+    r.style.display = r.dataset.name.includes(q)||r.dataset.id.includes(q) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}

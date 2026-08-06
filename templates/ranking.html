@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Rankings · BT LEARNING{% endblock %}
+{% block content %}
+<h1>🏆 Class Rankings</h1>
+<p class="muted">ELO-style ratings: pass knowledge checks on the first try, keep your study
+   streak, and master tough concepts to climb the board.</p>
+
+<div class="card">
+  {% if rows %}
+    {% for r in rows %}
+    <div class="rank-card" style="{{ 'border-color:var(--brand);background:#f7f7ff' if r.id == user.id else '' }}">
+      <div class="rank-num">{{ loop.index }}</div>
+      <div style="flex:1">
+        <b>{{ r.name }}</b>
+        {% if r.role == 'school_student' %}<span class="muted small"> · {{ r.student_id }}</span>{% endif %}
+        <div class="small muted">🔥 {{ r.streak }} day streak</div>
+      </div>
+      <span class="pill b">ELO {{ r.elo }}</span>
+      {% if r.id == user.id %}<span class="pill g">you</span>{% endif %}
+    </div>
+    {% endfor %}
+  {% else %}<p class="muted">No students yet.</p>{% endif %}
+</div>
+{% endblock %}

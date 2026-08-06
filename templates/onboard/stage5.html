@@ -1,0 +1,55 @@
+{% extends "onboard/_base.html" %}
+{% block title %}Launch · BT LEARNING{% endblock %}
+{% block content %}
+<h1>🚀 Stage 5 · Synchronization & Launch</h1>
+<p class="sub">Your AI-guided environment is compiled. Here is your finalized weekly calendar.</p>
+
+<div class="cal-summary">
+  {% if compiled %}
+    {% for b in compiled %}
+      <div class="cal-day">
+        <b>{{ b.day }}</b><br>
+        <span class="muted small">{{ '%02d:00'|format(b.start) }} – {{ '%02d:00'|format(b.end) }}</span>
+        {% if b.subject %}<br><span class="pill">{{ b.subject }}</span>{% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <div class="cal-day"><p class="muted">No sessions scheduled yet.</p></div>
+  {% endif %}
+</div>
+
+<p class="small muted">⏱️ {{ user.session_length }} min study + {{ user.break_length }} min break ·
+   🎓 Level: {{ user.academic_level or 'Not set' }} · 🗣️ Regional explanations:
+   {{ 'On' if user.blend_regional else 'Off' }}</p>
+
+<hr>
+<h2>🧭 Active Gatekeeping Check</h2>
+
+{% if state and state.in_block %}
+  <div class="launch-gate">
+    <h2>👋 {{ user.name }}, it's study time!</h2>
+    <p>We're inside your scheduled block. Your tutor already knows you enjoy
+       <i>{{ user.interests or 'learning' }}</i>, so it'll tailor every example to you.</p>
+    {% if launch_subject %}
+      <p class="small" style="color:#c7d2fe">Ready to begin Stage 1 of your <b>{{ launch_subject }}</b> notes.</p>
+      <form method="post" action="{{ url_for('onboard_complete') }}">
+        <input type="hidden" name="launch_subject" value="{{ launch_subject }}">
+        <button class="btn good" style="font-size:16px">🎬 Start my first AI session now</button>
+      </form>
+    {% else %}
+      <p class="small" style="color:#c7d2fe">Upload some notes to begin your first session.</p>
+      <a class="btn ghost" href="{{ url_for('onboard_stage3') }}">Add notes</a>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="launch-gate">
+    <h2>⏰ You're done setting up!</h2>
+    <p>{{ ai_hold_message }}</p>
+    <p class="small" style="color:#c7d2fe">The gatekeeper will open your lesson automatically at
+       your next scheduled block.</p>
+    <form method="post" action="{{ url_for('onboard_complete') }}">
+      <button class="btn good">✅ Finish setup &amp; go to dashboard</button>
+    </form>
+  </div>
+{% endif %}
+{% endblock %}

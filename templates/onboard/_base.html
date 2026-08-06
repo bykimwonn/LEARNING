@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Onboarding · BT LEARNING{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+.wiz{max-width:760px;margin:24px auto;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:28px}
+.wiz-head{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.wiz-head .brand{font-weight:800;color:var(--brand)}
+.wiz-steps{display:flex;gap:6px;margin:16px 0 6px;flex-wrap:wrap}
+.step-chip{flex:1;min-width:90px;text-align:center;padding:8px 6px;border-radius:10px;font-size:12px;font-weight:700;color:var(--muted);background:#f1f3f9}
+.step-chip.on{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}
+.step-chip.done{background:#e7f6ec;color:var(--good)}
+.wiz h1{font-size:24px;margin:6px 0 4px}
+.wiz .sub{color:var(--muted)}
+.pill-row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.tag{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:8px 14px;cursor:pointer;background:#fff;font-size:14px;user-select:none}
+.tag input{width:auto;margin:0}
+.tag:has(input:checked){border-color:var(--brand);background:var(--chip);color:var(--brand)}
+.mode{display:flex;gap:10px;flex-wrap:wrap}
+.mode label{flex:1;min-width:150px;border:2px solid var(--line);border-radius:14px;padding:16px;cursor:pointer;text-align:center;margin:0}
+.mode label:has(input:checked){border-color:var(--brand);background:var(--chip)}
+.mode input{width:auto}
+.folder{border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0;background:#fbfcff}
+.folder h3{margin:0 0 6px;display:flex;align-items:center;gap:8px}
+.sched-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--line)}
+.sched-row .day{width:110px;font-weight:700}
+.sched-row input{width:90px}
+.hintbox{background:#fff7ed;border:1px solid #fcd34d;border-radius:12px;padding:14px;margin:14px 0;font-size:14px}
+.launch-gate{background:linear-gradient(135deg,#312e81,#0f766e);color:#fff;border-radius:16px;padding:24px;text-align:center;margin:16px 0}
+.launch-gate h2{color:#fff;margin-top:0}
+.cal-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:12px 0}
+.cal-day{border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="wiz">
+  <div class="wiz-head">
+    <a class="brand" href="{{ url_for('splash') }}">BT LEARNING</a>
+    <span class="muted small">· Independent Learner Setup ·</span>
+  </div>
+  <div class="wiz-steps">
+    <span class="step-chip done">1 · Profile</span>
+    <span class="step-chip {{ 'on' if stage==2 else ('done' if stage>2 else '') }}">2 · Interests</span>
+    <span class="step-chip {{ 'on' if stage==3 else ('done' if stage>3 else '') }}">3 · Subjects & Notes</span>
+    <span class="step-chip {{ 'on' if stage==4 else ('done' if stage>4 else '') }}">4 · Schedule</span>
+    <span class="step-chip {{ 'on' if stage==5 else '' }}">5 · Launch</span>
+  </div>
+  <hr>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+</div>
+</body>
+</html>

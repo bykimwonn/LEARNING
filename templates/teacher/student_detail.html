@@ -1,0 +1,60 @@
+{% extends "teacher/_base.html" %}
+{% block title %}{{ stu.name }} · AI Report · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🧠 AI Report — {{ stu.name }}</h1>
+    <p class="muted">{{ stu.student_id }} · {{ sel.class_name }} · {{ sel.subject }}</p></div>
+  <a class="btn small ghost" href="{{ url_for('teacher_weaknesses') }}">← Back to roster</a>
+</div>
+
+<div class="grid g3" style="margin-top:6px">
+  <div class="card center" style="margin:0">
+    <h2 style="margin:0">Status</h2>
+    {% if weaknesses %}
+      <span class="pill r" style="font-size:16px;padding:8px 16px">Needs help</span>
+    {% else %}<span class="pill g" style="font-size:16px;padding:8px 16px">On track</span>{% endif %}
+  </div>
+  <div class="card center" style="margin:0">
+    <h2 style="margin:0">Open weak spots</h2>
+    <div style="font-size:40px;font-weight:800;color:var(--bad)">{{ weaknesses|length }}</div>
+  </div>
+  <div class="card center" style="margin:0">
+    <h2 style="margin:0">ELO / Streak</h2>
+    <div style="font-size:26px;font-weight:800">{{ stu.elo }}</div>
+    <p class="small muted">🔥 {{ stu.streak }} day streak</p>
+  </div>
+</div>
+
+{% for w in weaknesses %}
+<div class="concept">
+  <div class="step">The Roadblock</div>
+  <h2 style="margin-top:4px">{{ w.concept }}</h2>
+  <div class="row" style="margin:10px 0">
+    <span class="pill r">Attempt counter: {{ w.fail_count }}× wrong</span>
+    <span class="pill o">Last fail {{ w.last_fail_at[:16] }}</span>
+  </div>
+
+  <div class="card" style="background:#fbfcff">
+    <b>🤖 The AI Transcript</b>
+    <p class="small" style="white-space:pre-wrap;margin:8px 0">{{ w.transcript or 'No transcript available yet.' }}</p>
+  </div>
+
+  <div class="card" style="background:#fff7ed">
+    <b>💡 Language &amp; Analogy Log</b>
+    <p class="small" style="margin:8px 0"><b>Language:</b> {{ w.language_note or '—' }}</p>
+    <p class="small" style="margin:8px 0"><b>Analogy shown:</b> <em>{{ w.analogy or '—' }}</em></p>
+    <p class="small muted">This tells you how the student learns best — you can reinforce it offline.</p>
+  </div>
+
+  <form method="post" action="{{ url_for('teacher_resolve', wid=w.id) }}" style="margin-top:10px">
+    <input type="hidden" name="next" value="{{ request.url }}">
+    <button class="btn good small">✅ Mark as Resolved — reset AI tracking</button>
+  </form>
+</div>
+{% else %}
+<div class="card center" style="margin-top:16px">
+  <h2>No knowledge gaps detected 🎉</h2>
+  <p class="muted">This student has no unresolved weakness alerts in {{ sel.subject }}.</p>
+</div>
+{% endfor %}
+{% endblock %}

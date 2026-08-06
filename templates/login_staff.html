@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Staff Login · BT LEARNING{% endblock %}
+{% block content %}
+<div style="max-width:420px;margin:50px auto">
+  <div class="card">
+    <h1 style="font-size:22px">🔐 Staff / Admin Login</h1>
+    <p class="muted small">For School Administrators and Teachers. Log in with the email and
+       password provided by your institution.</p>
+    <form method="post">
+      <label>Email</label>
+      <input type="email" name="email" placeholder="you@school.co.zw" required>
+      <label>Password</label>
+      <input type="password" name="password" placeholder="Your password" required>
+      <div style="margin-top:18px"><button class="btn" style="width:100%">Log in</button></div>
+    </form>
+    <div style="margin-top:14px" class="center"><a class="small" href="{{ url_for('choose') }}">← Back</a></div>
+  </div>
+</div>
+{% endblock %}

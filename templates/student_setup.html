@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Your preferences · BT LEARNING{% endblock %}
+{% block content %}
+<div style="max-width:520px;margin:30px auto">
+  <div class="card">
+    <h1 style="font-size:22px">⚙️ Set up your learning profile</h1>
+    <p class="muted small">The AI tutor uses your interests to explain things in ways you enjoy,
+       and the timetable gatekeeper only opens the app during your study window.</p>
+    <form method="post">
+      <label>Interests / hobbies</label>
+      <input name="interests" value="{{ user.interests or '' }}" placeholder="e.g. soccer, music, gaming, reading">
+      <div class="row">
+        <div style="flex:1"><label>Study starts at (24h)</label>
+          <input type="number" name="start_hour" min="0" max="23" value="{{ user.study_start_hour }}"></div>
+        <div style="flex:1"><label>Study ends at (24h)</label>
+          <input type="number" name="end_hour" min="0" max="23" value="{{ user.study_end_hour }}"></div>
+      </div>
+      <p class="small muted">Note: if the current time is outside your window, the app will show a friendly countdown
+         instead of the lesson.</p>
+      <div style="margin-top:18px"><button class="btn" style="width:100%">Save preferences</button></div>
+    </form>
+  </div>
+</div>
+{% endblock %}

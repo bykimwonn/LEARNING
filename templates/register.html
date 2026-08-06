@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Create your account · BT LEARNING{% endblock %}
+{% block content %}
+<div style="max-width:520px;margin:30px auto">
+  <div class="card">
+    <h1 style="font-size:22px">✍️ Stage 1 · Create your account</h1>
+    <p class="muted small">Independent learners set their own subjects, upload their own notes,
+       and build their own study schedule. We'll walk you through it in 5 quick stages.</p>
+    <form method="post">
+      <label>Full name</label>
+      <input name="name" required>
+      <label>Email</label>
+      <input type="email" name="email" required>
+      <label>Password</label>
+      <input type="password" name="password" required>
+
+      <label>🎓 Academic level</label>
+      <select name="academic_level">
+        <option value="">— Select your level —</option>
+        <option>High School</option>
+        <option>O-Level</option>
+        <option>A-Level</option>
+        <option>Polytechnic / Vocational</option>
+        <option>College</option>
+        <option>University</option>
+      </select>
+      <p class="small muted">This sets the AI's baseline vocabulary and complexity.</p>
+
+      <label>🗣️ Language preference</label>
+      <label class="optlabel" style="cursor:pointer">
+        <input type="checkbox" name="blend_regional" value="1" checked>
+        Blend English with regional (Shona) expressions to clarify difficult concepts
+      </label>
+
+      <div style="margin-top:18px"><button class="btn" style="width:100%">Create account → Interests</button></div>
+    </form>
+    <div style="margin-top:14px" class="muted small">Already registered?
+      <a href="{{ url_for('login_independent') }}">Log in</a></div>
+  </div>
+</div>
+{% endblock %}

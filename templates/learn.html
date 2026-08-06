@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Learn {{ subject }} · BT LEARNING{% endblock %}
+{% block content %}
+<!-- ============ 1. GLOBAL SESSION HEADER ============ -->
+<div class="session-header">
+  <div class="sh-timer" title="Time remaining in your study block">
+    <div class="timer-ring" id="timerRing" style="--p:{{ (timer.remaining_min*100 / timer.total_min) if timer.total_min else 0 }}%">
+      <b id="timerMin">{{ timer.remaining_min }}</b>
+    </div>
+    <div class="small" style="line-height:1.2">
+      <b>Study block</b><br>
+      <span class="muted" id="timerSub">min left</span>
+    </div>
+  </div>
+  <div class="sh-title">
+    <div class="sub">{{ subject }}</div>
+    <div class="mod">Module — {{ chunk.title }}</div>
+  </div>
+  <div class="focus-pill" id="focusPill">
+    <span class="focus-dot" id="focusDot"></span>
+    <span id="focusLabel">Active Learning</span>
+  </div>
+</div>
+
+<div class="learn-layout">
+<!-- ============ 2. PROGRESSION SIDEBAR ============ -->
+<aside class="sidebar">
+  <h3>Concept Map</h3>
+  {% for cm in course_map %}
+    <div class="cm-item {{ cm.state }}">
+      <span class="ic">
+        {% if cm.state=='done' %}✅{% elif cm.state=='current' %}<span class="pulse-dot"></span>
+        {% elif cm.state=='unlocked' %}○{% else %}🔒{% endif %}
+      </span>
+      <span class="ttl">{{ loop.index }}. {{ cm.title }}</span>
+    </div>
+  {% endfor %}
+  <div class="elowidget">
+    <div class="small muted">Live Performance</div>
+    <div class="num" id="eloNum">{{ user.elo }}</div>
+    <div class="small muted">🔥 {{ user.streak }} day streak</div>
+    <div class="small muted">{{ user.points }} pts</div>
+  </div>
+</aside>
+
+<!-- ============ 3 + 4. ACTIVE WORKSPACE & KNOWLEDGE CHECK ============ -->
+<main class="workspace">
+
+  {% if not study_ok %}
+  <div class="gate">
+    <h2>⏰ It's not study time yet</h2>
+    <p>{{ study_msg }}</p>
+    <p class="muted" style="color:#c7d2fe">The timetable gatekeeper protects your routine.
+       When your study window opens, the AI tutor greets you right here.</p>
+    <form method="post" action="{{ url_for('learn_override', subject=subject) }}">
+      <button class="btn good small">🕒 Demo override — open lesson now</button>
+    </form>
+  </div>
+  {% else %}
+
+  {% if advance_msg %}<div class="msg ai" style="border-left:5px solid var(--good);background:#f0fbf3">
+    <div class="who" style="color:var(--good)">Progress</div>
+    <div class="text"><p>{{ advance_msg|safe }}</p></div>
+  </div>{% endif %}
+
+  {% if roadblock_msg %}<div class="roadblock">
+    <span class="roadblock-badge">🚧 Roadblock</span>
+    <p style="margin:8px 0 0">{{ roadblock_msg|safe }}</p>
+  </div>{% endif %}
+
+  <!-- AI greeting -->
+  <div class="msg ai">
+    <div class="who">BT Tutor</div>
+    <div class="text"><p>{{ greeting }}</p></div>
+  </div>
+
+  <!-- Adaptive concept delivery -->
+  <div class="msg ai">
+    <div class="who">BT Tutor · {{ chunk.title }}</div>
+    <div class="text">
+      <p><b>{{ personalized }}</b></p>
+      <p>{{ chunk.content }}</p>
+    </div>
+  </div>
+
+  <!-- Rich media embed -->
+  <div class="msg ai">
+    <div class="who">Supporting Visual</div>
+    <div class="video-box">
+      <iframe src="{{ video.url }}" title="{{ video.title }}" allowfullscreen
+        referrerpolicy="origin-when-cross-origin"></iframe>
+      <div class="video-cap">▶ {{ video.title }} (supporting video — loads in a full browser)</div>
+    </div>
+  </div>
+
+  <!-- Feedback on last answer -->
+  {% if feedback %}
+    {% if feedback.correct %}
+      <div class="msg feedback-ok">
+        <div class="who">Result</div>
+        <div class="text"><p>{{ feedback.msg }}</p></div>
+      </div>
+    {% else %}
+      <div class="msg feedback-no">
+        <div class="who">Not quite</div>
+        <div class="text"><p>{{ feedback.msg }}</p></div>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  {% if wrong_msg %}
+    <div class="msg ai">
+      <div class="who">BT Tutor · Re-explaining</div>
+      <div class="text"><p>{{ wrong_msg|safe }}</p></div>
+    </div>
+  {% endif %}
+
+  <!-- Knowledge check gate -->
+  {% if current_q %}
+  <div class="check-panel">
+    <div class="q-banner">
+      <span class="pill r">🔒 Verification required</span>
+      <span class="small muted">Answer correctly to unlock the next concept</span>
+    </div>
+    <p style="font-size:16px"><b>{{ current_q.question }}</b></p>
+    <form method="post" action="{{ url_for('learn_answer', subject=subject) }}">
+      <input type="hidden" name="qid" value="{{ current_q.id }}">
+      {% for opt in current_q.options %}
+        <label class="optlabel">
+          <input type="radio" name="choice" value="{{ loop.index0 }}" required>
+          {{ opt }}
+        </label>
+      {% endfor %}
+      <button class="btn small">Submit answer</button>
+    </form>
+    <div class="lock-note">
+      <span>🔒</span>
+      <span>The chat assistant is temporarily locked. Prove you've understood this concept first.</span>
+    </div>
+  </div>
+  {% else %}
+    <div class="roadblock" style="border-color:var(--good);background:#f0fbf3">
+      <p style="margin:0">This concept is done. {% if is_last %}
+         🎉 You've completed the module! Take the past paper to test yourself.{% else %}
+         Check the sidebar — a new concept is ready for you.</p>{% endif %}
+    </div>
+    {% if is_last %}
+    <a class="btn good" href="{{ url_for('practice', subject=subject) }}" style="text-align:center">🎯 Take the past paper</a>
+    {% endif %}
+  {% endif %}
+
+  {% endif %}
+</main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SUBJECT = {{ subject|tojson }};
+const ELO_BASE = {{ user.elo }};
+const REMAINING = {{ timer.remaining_min }};
+
+/* ---- Study-block timer ---- */
+let remaining = REMAINING, total = {{ timer.total_min or 60 }};
+function tickTimer(){
+  if(remaining>0) remaining--;
+  let mins = remaining, secs = 0;
+  document.getElementById('timerMin').textContent = mins;
+  document.getElementById('timerSub').textContent = mins<=1 ? 'min left' : 'min left';
+  let pct = total? Math.round(remaining*100/total) : 0;
+  document.getElementById('timerRing').style.setProperty('--p', pct+'%');
+}
+setInterval(tickTimer, 60000);
+tickTimer();
+
+/* ---- Focus / Active vs Idle tracking ---- */
+let activeSec=0, idleSec=0, lastActive=Date.now();
+['mousemove','mousedown','keydown','scroll','touchstart','click'].forEach(ev=>{
+  document.addEventListener(ev, function(){ lastActive=Date.now(); }, {passive:true});
+});
+function focusTick(){
+  const now=Date.now();
+  const delta=Math.floor((now-lastActive)/1000);
+  const dot=document.getElementById('focusDot'), lab=document.getElementById('focusLabel');
+  if(now-lastActive > 8000){
+    activeSec=0; idleSec += delta; idleSec=Math.min(idleSec,6);
+    dot.classList.add('idle'); lab.textContent='Idle';
+  } else {
+    activeSec += delta; activeSec=Math.min(activeSec,6); idleSec=0;
+    dot.classList.remove('idle'); lab.textContent='Active Learning';
+  }
+  lastActive=now;
+  // heartbeat every ~6s
+  if(activeSec>=6 || idleSec>=6){
+    sendFocus();
+    activeSec=0; idleSec=0;
+  }
+}
+function sendFocus(){
+  try{
+    fetch('/focus',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({subject:SUBJECT,active:activeSec,idle:idleSec})});
+  }catch(e){}
+}
+setInterval(focusTick,1000);
+
+</script>
+{% endblock %}

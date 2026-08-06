@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Teacher · BT LEARNING{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+.tnav{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+.tnav-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 0}
+.tnav .brand{white-space:nowrap}
+.tnav-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.tnav-right{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sel-box{display:flex;align-items:center;gap:8px;background:var(--chip);padding:6px 12px;border-radius:12px}
+.sel-box select{width:auto;border:0;background:transparent;font-weight:700;font-size:14px;cursor:pointer}
+.bell{position:relative;width:42px;height:42px;border-radius:12px;background:var(--chip);
+  display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--brand)}
+.bell .cnt{position:absolute;top:-6px;right:-6px;background:var(--bad);color:#fff;font-size:11px;
+  font-weight:800;border-radius:999px;padding:2px 7px}
+.tabs{display:flex;gap:6px;border-top:1px solid var(--line);padding:8px 0;flex-wrap:wrap}
+.tabs a{padding:9px 16px;border-radius:10px;color:var(--muted);font-weight:700;font-size:14px}
+.tabs a.on{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}
+.drop-wrap{position:relative}
+.quick-btn{display:inline-flex;align-items:center;gap:6px}
+.pop{position:absolute;right:0;top:110%;background:#fff;border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow);width:340px;padding:18px;z-index:40;display:none}
+.drop-wrap.open .pop{display:block}
+.drop-wrap .caret{font-size:11px}
+</style>
+</head>
+<body>
+<div class="tnav">
+  <div class="wrap">
+    <div class="tnav-row">
+      <div class="tnav-left">
+        <a class="brand" href="{{ url_for('teacher_home') }}">BT LEARNING
+          <small>Teacher Command Center</small></a>
+        <form method="post" action="{{ url_for('teacher_select_class') }}" class="sel-box">
+          <span>🗂️</span>
+          <select name="link_id" onchange="this.form.submit()">
+            {% for l in links %}
+              <option value="{{ l.id }}" {{ 'selected' if sel and sel.id==l.id }}>
+                {{ l.class_name }} · {{ l.subject }}</option>
+            {% endfor %}
+          </select>
+        </form>
+      </div>
+      <div class="tnav-right">
+        <div class="drop-wrap" id="quickdrop">
+          <button class="btn small quick-btn" onclick="document.getElementById('quickdrop').classList.toggle('open')">
+            ➕ Quick Upload <span class="caret">▼</span></button>
+          <div class="pop">
+            <b>Quick Upload</b>
+            <form method="post" action="{{ url_for('teacher_upload') }}" enctype="multipart/form-data">
+              <input type="hidden" name="next" value="{{ request.full_path }}">
+              <label>Title</label>
+              <input name="title" placeholder="e.g. Chapter 4 Notes" required>
+              <label>Subject</label>
+              <input name="subject" value="{{ sel.subject if sel else '' }}" required>
+              <label>Category</label>
+              <select name="category">
+                <option value="notes">📘 Notes</option>
+                <option value="past_exams">📝 Past Exam</option>
+              </select>
+              <label>File (.txt, .md, .pdf)</label>
+              <input type="file" name="file" accept=".txt,.md,.pdf">
+              <label>…or paste</label>
+              <textarea name="content" placeholder="Paste content here…"></textarea>
+              <div style="margin-top:10px"><button class="btn small" style="width:100%">Ingest into AI</button></div>
+            </form>
+          </div>
+        </div>
+        <a class="bell" href="{{ url_for('teacher_weaknesses') }}" title="AI weakness alerts">
+          🔔{% if notifications %}<span class="cnt">{{ notifications }}</span>{% endif %}
+        </a>
+        <span class="pill b">{{ sel.subject if sel else '—' }}</span>
+        <a class="btn small ghost" href="{{ url_for('logout') }}">Log out</a>
+      </div>
+    </div>
+    <div class="tabs">
+      {% set ep = request.endpoint %}
+      <a class="{{ 'on' if ep=='teacher_home' }}" href="{{ url_for('teacher_home') }}">🏠 Command Center</a>
+      <a class="{{ 'on' if ep=='teacher_curriculum' }}" href="{{ url_for('teacher_curriculum') }}">📚 Curriculum Hub</a>
+      <a class="{{ 'on' if ep in ('teacher_weaknesses','teacher_student_detail') }}" href="{{ url_for('teacher_weaknesses') }}">🧠 AI Intervention</a>
+      <a class="{{ 'on' if ep=='teacher_roster' }}" href="{{ url_for('teacher_roster') }}">⚙️ Settings & Roster</a>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="flash {{ cat }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+<footer>BT LEARNING — Owned by BONGANI TSHUMA · Teacher Command Center</footer>
+<script>
+// close quick upload popover on outside click
+document.addEventListener('click', function(e){
+  var d=document.getElementById('quickdrop');
+  if(d && !d.contains(e.target)) d.classList.remove('open');
+});
+</script>
+</body>
+</html>

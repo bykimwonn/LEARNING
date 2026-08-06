@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}{{ subject }} · BT LEARNING{% endblock %}
+{% block content %}
+<div class="card center" style="margin:40px auto;max-width:560px">
+  <h1>📭 No notes for {{ subject }} yet</h1>
+  <p class="muted">The AI tutor teaches only from uploaded materials, so it needs notes for this
+     subject before lessons can begin. Upload notes from your dashboard, or ask your teacher to add some.</p>
+  <a class="btn" href="{{ url_for('student_home') }}">Back to dashboard</a>
+</div>
+{% endblock %}

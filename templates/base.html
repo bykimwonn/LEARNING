@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}BT LEARNING{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+{% if current_user %}
+<div class="top">
+  <div class="wrap">
+    <a class="brand" href="{{ url_for('dashboard') }}">BT LEARNING
+      <small>Owned by Bongani Tshuma</small></a>
+    <nav class="nav">
+      {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('admin_home') }}">Admin Panel</a>
+      {% elif current_user.role == 'teacher' %}
+        <a href="{{ url_for('teacher_home') }}">Teacher Panel</a>
+      {% else %}
+        <a href="{{ url_for('student_home') }}">Dashboard</a>
+        <a href="{{ url_for('ranking') }}">Rankings</a>
+      {% endif %}
+      <span class="pill b">ELO {{ current_user.elo }}</span>
+      <span class="pill g">🔥 {{ current_user.streak }} day streak</span>
+      <span class="pill">{{ current_user.role|replace('_',' ')|title }}</span>
+      <a href="{{ url_for('logout') }}">Log out</a>
+    </nav>
+  </div>
+</div>
+{% endif %}
+<div class="wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <div class="flash {{ cat }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+<footer>BT LEARNING — Owned by BONGANI TSHUMA · Prototype built with ❤️ for smarter, Shona-friendly learning</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

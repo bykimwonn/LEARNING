@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} · BT LEARNING{% endblock %}
+{% block content %}
+<div class="card center" style="max-width:520px;margin:60px auto">
+  <div style="font-size:52px">{{ '⚠️' if code==500 else '🔍' }}</div>
+  <h1>{{ code }} — {{ title }}</h1>
+  <p class="muted">{{ message }}</p>
+  <p class="small muted">If this keeps happening, contact your administrator.</p>
+  <a class="btn" href="{{ url_for('splash') }}">Go to home</a>
+</div>
+{% endblock %}

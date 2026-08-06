@@ -1,0 +1,78 @@
+{% extends "teacher/_base.html" %}
+{% block title %}Command Center · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div>
+    <h1>Command Center</h1>
+    <p class="muted">{{ sel.class_name }} · {{ sel.subject }} — a live health overview of this class.</p>
+  </div>
+  <a class="btn small ghost" href="{{ url_for('teacher_curriculum') }}">Manage materials →</a>
+</div>
+
+<div class="grid g3" style="margin-top:6px">
+  <div class="card center" style="margin:0">
+    <h2 style="margin:0">Class Health Score</h2>
+    {% if health is not none %}
+      <div style="font-size:46px;font-weight:800;color:{{ '#16a34a' if health>=70 else ('#d97706' if health>=45 else '#dc2626') }}">{{ health }}%</div>
+      <p class="small muted">retention based on AI test results</p>
+      <div class="progressbar {{ 'good' if health>=70 else '' }}"><div style="width:{{ health }}%"></div></div>
+    {% else %}
+      <div style="font-size:30px;color:var(--muted)">No data yet</div>
+      <p class="small muted">Upload notes so students can start.</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin:0">
+    <div class="spread"><h2 style="margin:0">Action Required</h2>
+      <span class="pill r">{{ action_items|length }} critical</span></div>
+    {% if action_items %}
+      {% for it in action_items %}
+      <div class="small" style="padding:10px 0;border-bottom:1px solid var(--line)">
+        <b>{{ it.student_name }}</b> failed <b>{{ it.concept }}</b>
+        <span class="pill r">{{ it.fail_count }}×</span>
+        <div class="muted small">{{ it.subject }}</div>
+      </div>
+      {% endfor %}
+      <a class="btn small" href="{{ url_for('teacher_weaknesses') }}" style="margin-top:10px">Open reports →</a>
+    {% else %}
+      <p class="muted">No critical issues flagged. 🎉</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin:0">
+    <div class="spread"><h2 style="margin:0">Leaderboard</h2>
+      <span class="pill b">Board 1</span></div>
+    {% for lb in leaderboard[:5] %}
+      <div class="rank-card" style="padding:10px 12px;margin:6px 0">
+        <div class="rank-num" style="font-size:18px">{{ lb.pos }}</div>
+        <div style="flex:1"><b>{{ lb.student.name }}</b>
+          {% if lb.board1 %}<span class="pill g">Board 1</span>{% endif %}
+          <div class="small muted">🔥 {{ lb.student.streak }} day · ELO {{ lb.student.elo }}</div>
+        </div>
+      </div>
+    {% else %}<p class="muted">No students yet.</p>{% endfor %}
+  </div>
+</div>
+
+<div class="grid g2" style="margin-top:16px">
+  <div class="card">
+    <div class="spread">
+      <h2>⚡ At a glance</h2>
+    </div>
+    <div class="kv"><b>Students in class</b>{{ students|length }}</div>
+    <div class="kv"><b>Active notes</b>{{ notes_count }}</div>
+    <div class="kv"><b>Open weakness alerts</b>{{ weaknesses|length }}</div>
+    <div class="kv"><b>Teaching now</b>{{ sel.subject }}</div>
+  </div>
+  <div class="card">
+    <h2>📣 Latest alerts</h2>
+    {% for it in action_items[:4] %}
+      <div class="small" style="padding:8px 0;border-bottom:1px solid var(--line)">
+        🔴 <b>{{ it.student_name }}</b> — <i>{{ it.concept }}</i>
+        <span class="muted small">({{ it.fail_count }} failures)</span>
+      </div>
+    {% else %}<p class="muted">No alerts right now.</p>{% endfor %}
+    <a class="small" href="{{ url_for('teacher_weaknesses') }}">View all AI reports →</a>
+  </div>
+</div>
+{% endblock %}
