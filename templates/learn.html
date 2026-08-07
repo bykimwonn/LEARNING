@@ -20,6 +20,7 @@
     <span class="focus-dot" id="focusDot"></span>
     <span id="focusLabel">Active Learning</span>
   </div>
+  <button class="btn small ghost" onclick="openPlayer('focus')">🎧 Listen while learning</button>
 </div>
 
 <div class="learn-layout">
@@ -80,6 +81,32 @@
     <div class="text">
       <p><b>{{ personalized }}</b></p>
       <p>{{ chunk.content }}</p>
+    </div>
+  </div>
+
+  <!-- BT AI tools -->
+  <div class="msg ai" style="border-left-color:var(--brand2)">
+    <div class="who">🧠 BT AI</div>
+    <div class="text">
+      <p>Not clear? Let BT AI help you right now.</p>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <form method="post" action="{{ url_for('ai_explain') }}" style="display:inline">
+          <input type="hidden" name="content" value="{{ chunk.content }}">
+          <input type="hidden" name="subject" value="{{ subject }}">
+          <input type="hidden" name="note_title" value="{{ chunk.title }}">
+          <button class="btn small">💬 Explain simply</button>
+        </form>
+        <a class="btn small ghost" href="{{ url_for('ai_video') }}?subject={{ subject }}">🎬 Find a video</a>
+        <a class="btn small ghost" href="{{ url_for('ai_playlist', mode='focus') }}">🎵 Focus music</a>
+        <a class="btn small ghost" href="{{ url_for('ai_coach') }}">🧑‍🏫 Progress coach</a>
+      </div>
+      <form method="post" action="{{ url_for('ai_chat') }}" style="margin-top:10px">
+        <input type="hidden" name="subject" value="{{ subject }}">
+        <div class="row">
+          <input name="message" placeholder="Ask BT AI about this…" required style="flex:1">
+          <button class="btn small">💬 Chat</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -152,6 +179,19 @@
   {% endif %}
 </main>
 </div>
+
+<!-- Listen-while-learning corner player -->
+<div id="cornerPlayer" style="display:none;position:fixed;bottom:16px;right:16px;z-index:50;
+  background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);
+  width:280px;overflow:hidden">
+  <div style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;padding:8px 12px;
+    display:flex;justify-content:space-between;align-items:center">
+    <b style="font-size:13px">🎵 {{ 'Focus' if study_ok else 'Break' }} music</b>
+    <button onclick="closePlayer()" style="background:none;border:0;color:#fff;font-size:16px;cursor:pointer">✕</button>
+  </div>
+  <iframe id="cornerFrame" src="" title="music" style="width:100%;height:120px;border:0"></iframe>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -204,5 +244,27 @@ function sendFocus(){
 }
 setInterval(focusTick,1000);
 
+/* ---- Listen-while-learning + break auto-switch ---- */
+const studyOk = {{ 'true' if study_ok else 'false' }};
+let studyRemaining = REMAINING;
+
+function openPlayer(mode){
+  window.open('/ai/playlist?mode='+mode, '_blank');
+}
+function closePlayer(){
+  document.getElementById('cornerPlayer').style.display='none';
+}
+function switchToBreak(){
+  if(studyOk) openPlayer('break');
+}
+
+// Watch the study timer: when it reaches 0, offer the break mix.
+// (This runs alongside the visible timer; both tick once per minute.)
+setInterval(function(){
+  if(studyRemaining>0){
+    studyRemaining--;
+    if(studyRemaining===0) switchToBreak();
+  }
+}, 60000);
 </script>
 {% endblock %}

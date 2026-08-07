@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}BT AI Timetable · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div>
+    <h1>🧠 BT AI · Study Timetable</h1>
+    <p class="muted">BT AI builds (or restructures) a balanced weekly plan from your subjects.
+       Then print it or download it as a PDF.</p>
+  </div>
+  <div class="row">
+    <button class="btn small ghost" onclick="window.print()">🖨️ Print / Save as PDF</button>
+    <a class="btn small ghost" href="{{ url_for('student_home') }}">← Back</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>⚙️ Generate / Restructure with BT AI</h2>
+  {% if ai_note %}<div class="flash info">{{ ai_note }}</div>{% endif %}
+  <form method="post" action="{{ url_for('ai_timetable') }}">
+    <div class="row" style="align-items:flex-end;gap:12px">
+      <div style="flex:1">
+        <label>Weekly study hours (target)</label>
+        <input type="number" name="hours" value="10" min="1" max="40">
+      </div>
+      <div style="flex:2">
+        <label>Preferences / constraints (optional)</label>
+        <input name="preferences" placeholder="e.g. no mornings, exam next week on Biology, prefer evenings">
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn">🤖 Let BT AI build my timetable</button>
+      <span class="small muted" style="margin-left:10px">
+        Subjects: {% for s in subjects %}{{ s }}{{ ', ' if not loop.last }}{% endfor %}
+      </span>
+    </div>
+  </form>
+</div>
+
+<div class="card" id="printArea">
+  <h2>📅 Your Weekly Plan</h2>
+  {% if compiled %}
+    <div class="grid g2">
+      {% for day in days %}
+        {% if compiled.get(day) %}
+        <div class="cal-day" style="border:1px solid var(--line);border-radius:12px;padding:12px">
+          <b>{{ day }}</b>
+          {% for b in compiled[day] %}
+            <div class="small" style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed var(--line)">
+              <span>{{ b.subject or 'Any' }}</span>
+              <span class="muted">{{ '%02d:00'|format(b.start) }}–{{ '%02d:00'|format(b.end) }}</span>
+            </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No timetable yet. Click the button above to generate one.</p>
+  {% endif %}
+</div>
+
+<style>
+@media print {
+  .top, .tabs, .btn, footer, form, .nav { display:none !important; }
+  .card { box-shadow:none; border:1px solid #ccc; }
+  body { background:#fff; }
+}
+</style>
+{% endblock %}

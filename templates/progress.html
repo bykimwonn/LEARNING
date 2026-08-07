@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}My Progress · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>📈 My Progress</h1>
+    <p class="muted">Your performance across subjects, at a glance.</p></div>
+  <a class="btn small ghost" href="{{ url_for('student_home') }}">← Back</a>
+</div>
+
+<div class="grid g3" style="margin-top:6px">
+  <div class="card center" style="margin:0"><h2 style="margin:0">🏅 ELO</h2>
+    <div style="font-size:40px;font-weight:800;color:var(--brand)">{{ user.elo }}</div></div>
+  <div class="card center" style="margin:0"><h2 style="margin:0">🔥 Streak</h2>
+    <div style="font-size:40px;font-weight:800;color:var(--good)">{{ user.streak }} days</div></div>
+  <div class="card center" style="margin:0"><h2 style="margin:0">⭐ Points</h2>
+    <div style="font-size:40px;font-weight:800;color:var(--brand2)">{{ user.points }}</div></div>
+</div>
+
+<div class="card">
+  <h2>📚 Per-subject</h2>
+  {% for d in data %}
+  <div style="margin:16px 0">
+    <div class="spread"><b>{{ d.subject }}</b>
+      <span class="pill {{ 'g' if d.accuracy>=70 else ('o' if d.accuracy>=40 else 'r') }}">
+        {{ d.accuracy }}% accuracy</span></div>
+    <div class="progressbar" style="margin:8px 0"><div style="width:{{ d.accuracy }}%"></div></div>
+    <div class="small muted">
+      {{ d.mastered }}/{{ d.concepts }} concepts mastered · {{ d.correct }}/{{ d.total }} correct
+    </div>
+  </div>
+  {% else %}<p class="muted">No subjects with data yet. Start learning to see progress here.</p>{% endfor %}
+</div>
+{% endblock %}

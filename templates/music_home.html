@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}BT AI Music · BT LEARNING{% endblock %}
+{% block content %}
+<div class="center" style="margin:30px 0">
+  <h1>🎵 BT AI Music</h1>
+  <p class="muted">BT AI picks music for your mood — calm focus tracks while studying,
+     upbeat tracks during breaks. Chosen based on your interests.</p>
+</div>
+<div class="paths" style="max-width:620px">
+  <a class="path" href="{{ url_for('ai_playlist', mode='focus') }}">
+    <div class="ico">🧘</div>
+    <h3>Focus Playlist</h3>
+    <p class="muted">Low-distraction, calm music to help you concentrate while studying.</p>
+    <span class="btn">Play focus mix</span>
+  </a>
+  <a class="path" href="{{ url_for('ai_playlist', mode='break') }}">
+    <div class="ico">⚡</div>
+    <h3>Break Playlist</h3>
+    <p class="muted">Upbeat, energising music to enjoy during your break.</p>
+    <span class="btn good">Play break mix</span>
+  </a>
+</div>
+{% endblock %}

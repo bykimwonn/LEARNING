@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}BT AI Quiz · {{ subject }} · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🧠 BT AI Quiz · {{ subject }}</h1>
+    <p class="muted">Practice questions written from your own notes{% if ai_enabled %} by BT AI{% endif %}.</p>
+  </div>
+  <a class="btn small ghost" href="{{ url_for('learn', subject=subject) }}">← Back to lesson</a>
+</div>
+
+<div class="card">
+  <h2>⚙️ Generate a quiz</h2>
+  {% if ai_note %}<div class="flash info">{{ ai_note }}</div>{% endif %}
+  <form method="post" action="{{ url_for('ai_quiz', subject=subject) }}" class="row" style="align-items:flex-end">
+    <div style="width:120px"><label>Questions</label>
+      <select name="num">
+        <option>3</option><option selected>5</option><option>8</option><option>10</option>
+      </select></div>
+    <button class="btn">Generate quiz</button>
+  </form>
+</div>
+
+{% if questions %}
+<div class="qblock">
+  <p><b>Q1:</b> {{ questions[0].question }}</p>
+  <form method="post" action="{{ url_for('ai_quiz_answer', subject=subject) }}">
+    <input type="hidden" name="qid" value="0">
+    {% for opt in questions[0].options %}
+      <label class="optlabel"><input type="radio" name="choice" value="{{ loop.index0 }}" required>{{ opt }}</label>
+    {% endfor %}
+    <button class="btn small">Submit answer</button>
+  </form>
+  <p class="small muted">{{ questions|length }} questions in this quiz.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}BT AI Progress Coach · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🧑‍🏫 BT AI Progress Coach</h1>
+    <p class="muted">A weekly review of your performance, generated from your knowledge checks{% if ai_enabled %}{% endif %}.</p>
+  </div>
+  <a class="btn small ghost" href="{{ url_for('student_home') }}">← Back</a>
+</div>
+
+{% for r in reports %}
+<div class="concept" style="border-left-color:var(--brand2)">
+  <div class="step">Subject · {{ r.subject }}</div>
+  <h2 style="margin-top:4px">
+    {% if r.total %}
+      {{ r.correct }}/{{ r.total }} correct ({{ (r.correct*100/r.total)|round|int }}%)
+    {% else %}
+      No checks yet
+    {% endif %}
+  </h2>
+  <div style="white-space:pre-wrap;background:#fbfcff;border:1px solid var(--line);border-radius:12px;padding:14px">{{ r.coach }}</div>
+  {% if r.weak %}
+    <div class="row" style="margin-top:10px">
+      <span class="pill r">Review: {% for w in r.weak %}{{ w }}{{ ', ' if not loop.last }}{% endfor %}</span>
+    </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="card"><p class="muted">No subjects with data yet.</p></div>
+{% endfor %}
+{% endblock %}

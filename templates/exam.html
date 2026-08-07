@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Exam Simulation · {{ subject }} · BT LEARNING{% endblock %}
+{% block content %}
+<div class="session-header">
+  <div class="sh-timer"><div class="timer-ring" id="examRing"><b id="examMin">--</b></div>
+    <div class="small"><b>Exam</b><br><span class="muted">timed</span></div></div>
+  <div class="sh-title">
+    <div class="sub">📝 Exam Simulation · {{ subject }}</div>
+    <div class="mod">Question {{ idx+1 }} of {{ total }} · {{ answered }} answered</div>
+  </div>
+  <a class="btn small ghost" href="{{ url_for('learn', subject=subject) }}">✕ End exam</a>
+</div>
+
+<div class="qblock">
+  <p style="font-size:17px"><b>{{ question.question }}</b></p>
+  <form method="post" action="{{ url_for('exam', subject=subject) }}">
+    <input type="hidden" name="qid" value="{{ question.id }}">
+    {% for opt in question.options %}
+      <label class="optlabel"><input type="radio" name="choice" value="{{ loop.index0 }}" required>{{ opt }}</label>
+    {% endfor %}
+    {% if answered >= total - 1 %}
+      <button class="btn" formaction="{{ url_for('exam_submit', subject=subject) }}">Submit exam</button>
+    {% else %}
+      <button class="btn">Next →</button>
+    {% endif %}
+  </form>
+</div>
+
+<script>
+// simple countdown
+let mins = {{ 15 }};
+const el=document.getElementById('examMin');
+function tick(){ el.textContent = mins; if(mins>0) mins--; }
+setInterval(tick,60000); tick();
+</script>
+{% endblock %}

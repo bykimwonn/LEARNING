@@ -18,6 +18,7 @@ from flask import (Flask, request, session, redirect, url_for,
 
 import db
 import ai_engine as ai
+import btai
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
@@ -751,7 +752,8 @@ def student_setup():
         interests = request.form.get("interests", "").strip()
         start = int(request.form.get("start_hour", 18))
         end = int(request.form.get("end_hour", 21))
-        db.update_user(u["id"], interests=interests,
+        language = request.form.get("language", "en")
+        db.update_user(u["id"], interests=interests, language=language,
                        study_start_hour=start, study_end_hour=end)
         flash("Your preferences and study schedule are saved.", "success")
         return redirect(url_for("student_home"))
@@ -783,7 +785,8 @@ def student_home():
     weaknesses = db.list_weaknesses(user_id=u["id"])
     my_notes = [n for n in db.list_notes() if n["owner_id"] == u["id"]]
     return render_template("student_home.html", user=u, subjects=subjects_with_progress,
-                           weaknesses=weaknesses, my_notes=my_notes)
+                           weaknesses=weaknesses, my_notes=my_notes,
+                           ai_enabled=btai.ai_enabled())
 
 
 @app.route("/student/upload", methods=["POST"])
@@ -903,7 +906,13 @@ def learn(subject):
                      "start_hour": 0, "end_hour": 23}
     else:
         timer = ai.session_countdown(u["study_start_hour"], u["study_end_hour"], now)
-    video = ai.video_for(subject)
+    # Per-concept video (BT AI picks a relevant supporting video; falls back to subject video)
+    if btai.ai_enabled():
+        video = btai.recommend_video(subject, chunk["title"], u["interests"])
+    else:
+        video = ai.video_for(subject)
+    # gather note context for the AI chat panel on this subject
+    ai_context = "\n".join(c["content"] for c in course)
 
     blend = bool(u["blend_regional"])
     personalized = ai.personalized_explain(chunk["title"], u["interests"], blend=blend)
@@ -917,7 +926,7 @@ def learn(subject):
                            personalized=personalized,
                            study_msg=study_msg,
                            greeting=ai.greet(u["interests"], now.hour, blend=blend),
-                           shona=ai.SHONA)
+                           shona=ai.SHONA, ai_context=ai_context)
 
 
 @app.route("/learn/<subject>/answer", methods=["POST"])
@@ -1050,6 +1059,314 @@ def diagnostic(subject):
 # ---------------------------------------------------------------------------
 # PRACTICE / past papers  (Phase 4/5)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# BT AI TOOLS  (Gemini-powered; falls back to rule-based automatically)
+# ---------------------------------------------------------------------------
+@app.route("/ai/chat", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_chat():
+    """Persistent AI tutor chat bound to the uploaded notes."""
+    u = current_user()
+    subject = request.form.get("subject", "")
+    message = request.form.get("message", "").strip()
+    # gather note context for this subject
+    context_parts = []
+    for n in db.list_notes(subject=subject, category="notes"):
+        for c in db.chunks_for_note(n["id"]):
+            context_parts.append(c["content"])
+    context = "\n".join(context_parts)
+    # simple per-session history stored in the flask session
+    hist = session.get("ai_chat", [])
+    reply = btai.chat(context, message, u["interests"], u["academic_level"], hist)
+    hist.append({"role": "user", "text": message})
+    hist.append({"role": "ai", "text": reply})
+    session["ai_chat"] = hist[-12:]
+    return render_template("chat.html", user=u, subject=subject, message=message,
+                           reply=reply, history=hist, ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/coach")
+@login_required
+@role_required("school_student", "independent")
+def ai_coach():
+    """AI progress coach: weekly review from quiz attempts."""
+    u = current_user()
+    subjects = db.subjects_for_student(u)
+    reports = []
+    for subj in subjects:
+        atts = db.attempts_for_user_subject(u["id"], subj)
+        total = len(atts)
+        correct = sum(1 for a in atts if a["correct"])
+        wrong = total - correct
+        weak = db.weakness_for_student_subject(u["id"], subj)
+        weak_names = [w["concept"] for w in weak][:3]
+        coach = btai.progress_coach(subj, total, correct, wrong, weak_names, u["interests"])
+        reports.append({"subject": subj, "total": total, "correct": correct,
+                        "wrong": wrong, "weak": weak_names, "coach": coach})
+    return render_template("coach.html", user=u, reports=reports,
+                           ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/answer-explain", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_answer_explain():
+    """Explain a failed knowledge-check answer via BT AI."""
+    u = current_user()
+    question = request.form.get("question", "")
+    correct = request.form.get("correct", "")
+    chosen = request.form.get("chosen", "")
+    subject = request.form.get("subject", "")
+    explanation = btai.explain_answer(question, correct, chosen, u["interests"])
+    return render_template("answer_explain.html", user=u, explanation=explanation,
+                           subject=subject, question=question, correct=correct,
+                           ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/timetable", methods=["GET", "POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_timetable():
+    """AI timetable builder: restructure schedule + print/save-as-PDF."""
+    u = current_user()
+    subjects = db.subjects_for_student(u)
+    ai_note = None
+    if request.method == "POST":
+        prefs = request.form.get("preferences", "").strip()
+        hours = request.form.get("hours", "10")
+        try:
+            hours = int(hours)
+        except Exception:
+            hours = 10
+        tbl = btai.generate_timetable(subjects, total_hours=hours, preferences=prefs)
+        # persist as schedule blocks
+        blocks = []
+        day_map = {d: i for i, d in enumerate(ai.WEEKDAYS)}
+        for day, sched in tbl.items():
+            day_idx = day_map.get(day, 0)
+            for slot in sched:
+                s = int(slot.get("start", 9))
+                e = int(slot.get("end", 10))
+                blocks.append((day_idx, s, e, slot.get("subject")))
+        db.set_schedule(u["id"], blocks)
+        if btai.ai_enabled():
+            ai_note = "BT AI restructured your timetable from your subjects and preferences."
+        else:
+            ai_note = "Balanced timetable generated (Gemini not reachable right now — using fallback engine)."
+    sched = db.get_schedule(u["id"])
+    compiled = {}
+    for b in sched:
+        compiled.setdefault(ai.WEEKDAYS[b["day"]], []).append(
+            {"subject": b["subject"], "start": b["start_hour"], "end": b["end_hour"]})
+    return render_template("timetable.html", user=u, subjects=subjects,
+                           compiled=compiled, days=ai.WEEKDAYS, ai_note=ai_note,
+                           ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/explain", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_explain():
+    """Explain a chunk of notes via BT AI in plain English."""
+    u = current_user()
+    content = request.form.get("content", "")
+    subject = request.form.get("subject", "")
+    note_title = request.form.get("note_title", subject)
+    explanation = btai.explain_notes(content, u["interests"], u["academic_level"])
+    return render_template("ai_explain.html", user=u, explanation=explanation,
+                           subject=subject, note_title=note_title,
+                           ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/music")
+@login_required
+@role_required("school_student", "independent")
+def ai_music():
+    u = current_user()
+    return render_template("music_home.html", user=u, ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/playlist", methods=["GET", "POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_playlist():
+    u = current_user()
+    mode = request.form.get("mode") if request.method == "POST" else request.args.get("mode", "focus")
+    subject = request.form.get("subject") if request.method == "POST" else ""
+    mode = mode if mode in ("focus", "break") else "focus"
+    songs = btai.recommend_playlist(u["interests"], mode)
+    return render_template("playlist.html", user=u, songs=songs, mode=mode,
+                           subject=subject, ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/video", methods=["GET", "POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_video():
+    u = current_user()
+    if request.method == "POST":
+        subject = request.form.get("subject", "")
+        topic = request.form.get("topic", "")
+    else:
+        subject = request.args.get("subject", "")
+        topic = request.args.get("topic", "")
+    video = btai.recommend_video(subject, topic, u["interests"])
+    return render_template("video.html", user=u, video=video, subject=subject,
+                           ai_enabled=btai.ai_enabled())
+
+
+# ---------------------------------------------------------------------------
+# BT AI — quizzes, progress, exam sim, reminders (new features)
+# ---------------------------------------------------------------------------
+@app.route("/ai/quiz/<subject>", methods=["GET", "POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_quiz(subject):
+    """AI-generated quiz from the student's notes."""
+    u = current_user()
+    context = "\n".join(c["content"] for c in curriculum(subject)) if curriculum(subject) else ""
+    questions = []
+    ai_note = None
+    if request.method == "POST":
+        num = int(request.form.get("num", 5))
+        questions = btai.generate_quiz(subject, context, u["interests"], num, u.get("language") or "en")
+        session[f"ai_quiz_{subject}"] = questions
+        if btai.ai_enabled():
+            ai_note = "BT AI wrote these questions from your notes."
+        else:
+            ai_note = "Quiz generated (BT AI fallback engine — add GROQ_API_KEY for AI-written questions)."
+    return render_template("quiz.html", user=u, subject=subject, questions=questions,
+                           ai_note=ai_note, ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/quiz/<subject>/answer", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_quiz_answer(subject):
+    u = current_user()
+    qs = session.get(f"ai_quiz_{subject}", [])
+    qid = int(request.form.get("qid"))
+    chosen = int(request.form.get("choice"))
+    if 0 <= qid < len(qs):
+        q = qs[qid]
+        correct = chosen == q["answer_index"]
+        db.log_attempt(u["id"], -1 - qid, subject, -2, 1 if correct else 0)
+        flash("Correct!" if correct else f"Not quite. The answer was {q['options'][q['answer_index']]}.",
+              "success" if correct else "error")
+    return redirect(url_for("ai_quiz", subject=subject))
+
+
+@app.route("/ai/progress")
+@login_required
+@role_required("school_student", "independent")
+def ai_progress():
+    """Progress dashboard: accuracy, concepts, streak per subject."""
+    u = current_user()
+    subjects = db.subjects_for_student(u)
+    data = []
+    for subj in subjects:
+        atts = db.attempts_for_user_subject(u["id"], subj)
+        total = len(atts)
+        correct = sum(1 for a in atts if a["correct"])
+        done = db.completed_concepts(u["id"], subj)
+        total_concepts = len(curriculum(subj))
+        data.append({"subject": subj, "total": total, "correct": correct,
+                     "accuracy": round(correct * 100 / total) if total else 0,
+                     "mastered": len(done), "concepts": total_concepts,
+                     "elo": u["elo"], "streak": u["streak"]})
+    return render_template("progress.html", user=u, data=data)
+
+
+@app.route("/ai/reminder")
+@login_required
+@role_required("school_student", "independent")
+def ai_reminder():
+    u = current_user()
+    sched = db.get_schedule(u["id"])
+    state = ai.schedule_state(sched, datetime.datetime.now()) if sched else {"next": None}
+    message = btai.study_reminder(state, u["name"].split()[0])
+    return render_template("reminder.html", user=u, message=message)
+
+
+@app.route("/exam/<subject>", methods=["GET", "POST"])
+@login_required
+@role_required("school_student", "independent")
+def exam(subject):
+    """Timed exam simulation from past papers."""
+    u = current_user()
+    papers, qs = past_papers(subject)
+    if not qs:
+        return render_template("learn_empty.html", subject=subject)
+    import random
+    if request.method == "POST":
+        qid = int(request.form.get("qid"))
+        chosen = int(request.form.get("choice"))
+        exam_answers = session.get(f"exam_{subject}", {})
+        exam_answers[str(qid)] = chosen
+        session[f"exam_{subject}"] = exam_answers
+        return redirect(url_for("exam", subject=subject, qid=qid))
+    # pick question based on query param or first unanswered
+    cur_qid = request.args.get("qid")
+    if cur_qid and int(cur_qid) in [q["id"] for q in qs]:
+        idx = next(i for i, q in enumerate(qs) if q["id"] == int(cur_qid))
+    else:
+        exam_answers = session.get(f"exam_{subject}", {})
+        # find first unanswered
+        idx = next((i for i, q in enumerate(qs) if str(q["id"]) not in exam_answers), 0)
+    question = qs[idx]
+    total = len(qs)
+    answered = len(session.get(f"exam_{subject}", {}))
+    return render_template("exam.html", user=u, subject=subject, question=question,
+                           total=total, answered=answered, idx=idx)
+
+
+@app.route("/exam/<subject>/submit", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def exam_submit(subject):
+    """Score the exam simulation."""
+    u = current_user()
+    papers, qs = past_papers(subject)
+    exam_answers = session.get(f"exam_{subject}", {})
+    correct = 0
+    for q in qs:
+        if str(q["id"]) in exam_answers and exam_answers[str(q["id"])] == q["answer_index"]:
+            correct += 1
+            db.log_attempt(u["id"], q["id"], subject, -1, 1)
+        else:
+            db.log_attempt(u["id"], q["id"], subject, -1, 0)
+    total = len(qs)
+    feedback = btai.exam_feedback(subject, correct, total)
+    # ELO reward
+    db.update_user(u["id"], elo=u["elo"] + round(correct * 3), points=u["points"] + correct)
+    session.pop(f"exam_{subject}", None)
+    return render_template("exam_result.html", user=u, subject=subject, correct=correct,
+                           total=total, feedback=feedback)
+
+
+@app.route("/teacher/ai-insights")
+@login_required
+@role_required("teacher")
+def teacher_ai_insights():
+    """Teacher-facing AI summary of class performance."""
+    u = current_user()
+    links, sel = teacher_context()
+    insights = []
+    if sel:
+        class_id, subject = sel["class_id"], sel["subject"]
+        health = db.class_health(class_id, subject)
+        weak_items = db.list_weaknesses_for_subject(class_id, subject)
+        students = db.students_in_class(class_id)
+        summary = btai.class_summary(subject, health, weak_items[:5], len(students),
+                                     language=u.get("language") or "en")
+        insights.append({"subject": subject, "health": health, "summary": summary,
+                         "weak_items": weak_items})
+    return render_template("teacher/ai_insights.html", user=u, links=links, sel=sel,
+                           insights=insights, ai_enabled=btai.ai_enabled(),
+                           notifications=teacher_notification_count())
+
+
 @app.route("/practice/<subject>")
 @login_required
 @role_required("school_student", "independent")

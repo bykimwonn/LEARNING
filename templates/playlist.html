@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}BT AI Music · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🎵 BT AI Music · {{ 'Focus' if mode=='focus' else 'Break' }}</h1>
+    <p class="muted">A {{ mode }} playlist chosen for you{% if ai_enabled %}{% endif %}.
+       Calm, low-distraction tracks so music helps you concentrate, not distract.</p>
+  </div>
+  <a class="btn small ghost" href="{{ url_for('student_home') }}">← Back</a>
+</div>
+
+<div class="card">
+  <h2>🎶 Your Playlist</h2>
+  <p class="small muted">Click a track to play it in-app (YouTube audio).</p>
+  <div class="grid g2">
+    {% for s in songs %}
+    <div class="opt" onclick="togglePlayer(this,'{{ s.url }}')" style="cursor:pointer">
+      <div style="flex:1">
+        <b>{{ s.title }}</b><br>
+        <span class="muted small">{{ s.artist }}</span>
+      </div>
+      <span class="pill b">▶</span>
+    </div>
+    {% endfor %}
+  </div>
+  <div id="playerBox" style="margin-top:16px;display:none">
+    <iframe id="musicFrame" src="" title="music" style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px" allowfullscreen></iframe>
+  </div>
+</div>
+
+<script>
+function togglePlayer(el, url){
+  const box=document.getElementById('playerBox');
+  const frame=document.getElementById('musicFrame');
+  if(box.style.display==='none'){
+    frame.src=url;
+    box.style.display='block';
+  } else {
+    frame.src='';
+    box.style.display='none';
+  }
+}
+</script>
+{% endblock %}

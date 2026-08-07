@@ -1,0 +1,448 @@
+"""
+BT AI — the Groq-powered intelligence layer for BT LEARNING.
+
+BT AI does the "heavy lifting": explaining notes in plain English, building
+personalized study timetables, recommending videos, generating focus/break
+music playlists, and tailoring explanations to a student's interests.
+
+The app UI calls it "BT AI" regardless of the underlying model.
+
+Backend: Groq (free tier, fast, no billing needed). The API key is read from
+the GROQ_API_KEY environment variable (or a local, git-ignored .env file). If
+no key is set, the network is blocked, or Groq returns an error, every function
+falls back gracefully to the built-in rule-based engine (ai_engine.py) so the
+app ALWAYS works.
+
+  NEVER hardcode or commit the API key. Set GROQ_API_KEY in Render's
+  Environment tab instead.
+"""
+import os
+import re
+import json
+import datetime
+
+import ai_engine  # rule-based fallback
+
+MODEL_NAME = "llama-3.3-70b-versatile"   # strong free Groq model
+# MODEL_NAME = "llama-3.1-8b-instant"    # lighter/faster free model (fallback option)
+
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+def _load_dotenv():
+    """Load GROQ_API_KEY from a local .env file if present (dev only)."""
+    try:
+        base = os.path.dirname(os.path.abspath(__file__))
+        for name in (".env", "secrets.env"):
+            p = os.path.join(base, name)
+            if os.path.exists(p):
+                for line in open(p):
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        os.environ.setdefault(k.strip(), v.strip())
+    except Exception:
+        pass
+
+
+_load_dotenv()
+
+_client = None
+
+
+def get_api_key():
+    return (os.environ.get("GROQ_API_KEY") or "").strip()
+
+
+def _get_client():
+    """Return a configured Groq client, or None if unusable."""
+    global _client
+    if _client is not None:
+        return _client
+    key = get_api_key()
+    if not key:
+        return None
+    try:
+        import groq
+        _client = groq.Groq(api_key=key)
+    except Exception:
+        _client = False  # disable after first failure
+    return _client if _client else None
+
+
+def ai_enabled():
+    """True if a real Groq model is configured and usable."""
+    return _get_client() is not None
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+def _call(prompt, temperature=0.7, max_tokens=None):
+    """Call Groq and return text. Returns None on any failure."""
+    client = _get_client()
+    if not client:
+        return None
+    try:
+        kwargs = {"temperature": temperature}
+        if max_tokens:
+            kwargs["max_tokens"] = max_tokens
+        resp = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            **kwargs,
+        )
+        return resp.choices[0].message.content
+    except Exception as e:
+        print(f"[btai] Groq call failed ({type(e).__name__}): {str(e)[:120]}")
+        return None
+
+
+def _extract_json(text):
+    """Pull a JSON object/array out of model text (handles code fences)."""
+    if not text:
+        return None
+    text = text.strip()
+    # remove markdown fences
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.MULTILINE).strip()
+    # find first { ... } or [ ... ]
+    for opener, closer in (("[", "]"), ("{", "}")):
+        s = text.find(opener)
+        e = text.rfind(closer)
+        if s != -1 and e > s:
+            try:
+                return json.loads(text[s:e + 1])
+            except Exception:
+                pass
+    return None
+
+
+def _safe_json(prompt, fallback, temperature=0.4):
+    """Call Gemini for JSON, returning fallback on any failure."""
+    out = _call(prompt, temperature=temperature)
+    parsed = _extract_json(out)
+    return parsed if parsed is not None else fallback
+
+
+# ---------------------------------------------------------------------------
+# 1) Timetable generation (AI restructures the student's schedule)
+# ---------------------------------------------------------------------------
+def generate_timetable(subjects, total_hours=10, preferences=""):
+    """Return a weekly timetable dict {day: [ {subject, start, end} ]}."""
+    days = ai_engine.WEEKDAYS
+    # --- Fallback: balanced rule-based timetable (always works) ---
+    fallback = {}
+    if subjects:
+        per_day = max(1, round(total_hours / 7))
+        idx = 0
+        for d in days:
+            block = []
+            for _ in range(max(1, per_day // max(1, len(subjects)))):
+                subj = subjects[idx % len(subjects)]
+                idx += 1
+                block.append({"subject": subj, "start": 9, "end": 10})
+            fallback[d] = block
+
+    prompt = f"""You are BT AI, a study coach. Build a balanced weekly study timetable.
+Subjects: {json.dumps(subjects)}
+Total study hours per week: {total_hours}
+Student preferences/constraints: {preferences or 'none'}
+
+Return STRICT JSON (no prose, no markdown) with this exact shape:
+{{"timetable": {{"Monday":[{{"subject":"...","start":9,"end":10}}], ... all 7 days }}}}
+Use 24h hour integers. Spread subjects evenly. Keep each session 30-120 min."""
+
+    parsed = _safe_json(prompt, fallback={"timetable": fallback})
+    data = parsed.get("timetable", parsed) if isinstance(parsed, dict) else parsed
+    if isinstance(data, dict) and data:
+        # normalise keys to full day names
+        normal = {}
+        for k, v in data.items():
+            # accept abbreviations
+            key = next((d for d in days if d.lower().startswith(k.lower()[:3])), k)
+            normal[key] = v if isinstance(v, list) else []
+        if len(normal) >= 7:
+            return normal
+    return fallback
+
+
+# ---------------------------------------------------------------------------
+# 2) Explain notes in plain, easy English (personalised)
+# ---------------------------------------------------------------------------
+def explain_notes(content, interests="", academic_level=""):
+    """Return a plain-English, interest-aware explanation of uploaded notes."""
+    content = (content or "")[:4000]
+    interest_hint = ""
+    if interests:
+        interest_hint = (f"\nPersonalise the examples using the student's interests: {interests}. "
+                         "Use analogies from these where possible.")
+    prompt = f"""You are BT AI, a friendly tutor. Explain the following notes in VERY SIMPLE,
+easy-to-understand English for a {academic_level or 'school'} student. Break it into short,
+digestible points. Use plain words and simple analogies. Do not just repeat the notes — make
+them make sense. Keep it under 300 words.{interest_hint}
+
+NOTES:
+{content}"""
+    out = _call(prompt)
+    if out:
+        return out.strip()
+    # Fallback: rule-based summary of first sentences
+    return _fallback_explain(content, interests)
+
+
+def _fallback_explain(content, interests):
+    sentences = ai_engine.split_sentences(content)
+    intro = ai_engine.personalized_explain(sentences[0][:60] if sentences else "this topic", interests)
+    return intro + "\n\n" + "\n".join(f"• {s}" for s in sentences[:5])
+
+
+# ---------------------------------------------------------------------------
+# 3) Video recommendation
+# ---------------------------------------------------------------------------
+def recommend_video(subject, topic="", interests=""):
+    """Return {title, url} of a good supporting video (YouTube search embed)."""
+    base = ai_engine.video_for(subject)
+    prompt = f"""Pick ONE great YouTube search phrase for a student learning '{subject}'
+{topic and 'on "' + topic + '"' or ''}. Interests: {interests or 'none'}.
+Return STRICT JSON: {{"query": "concise search phrase (5-10 words)"}}"""
+    parsed = _safe_json(prompt, fallback={"query": base["title"]})
+    query = parsed.get("query", base["title"]) if isinstance(parsed, dict) else base["title"]
+    query = query.replace("+", " ")[:80]
+    url = f"https://www.youtube.com/embed/videoseries?listType=search&list={query.replace(' ', '+')}"
+    return {"title": query, "url": url}
+
+
+# ---------------------------------------------------------------------------
+# 4) Music playlist (focus / study vs break)
+# ---------------------------------------------------------------------------
+def recommend_playlist(interests="", mode="focus"):
+    """Return a list of songs {title, artist, url}. mode: 'focus' or 'break'."""
+    interest_hint = interests or "generic calm"
+    prompt = f"""You are BT AI. The student likes: {interest_hint}.
+Generate a '{mode}' playlist of 8 songs — for study/focus, pick calm, low-distraction,
+instrumental or soft tracks; for break, pick upbeat, energising tracks they'd enjoy.
+Return STRICT JSON (no markdown): an array of objects:
+[{{"title":"...","artist":"..."}}, ...]"""
+    parsed = _safe_json(prompt, fallback=_fallback_playlist(interests, mode), temperature=0.6)
+    if isinstance(parsed, list):
+        songs = parsed
+    elif isinstance(parsed, dict) and "songs" in parsed:
+        songs = parsed["songs"]
+    else:
+        songs = _fallback_playlist(interests, mode)
+    out = []
+    for s in songs[:8]:
+        if isinstance(s, dict):
+            title = str(s.get("title", "")).strip()
+            artist = str(s.get("artist", "")).strip()
+            if title:
+                q = f"{title} {artist}".strip().replace(" ", "+")
+                out.append({"title": title, "artist": artist,
+                            "url": f"https://www.youtube.com/embed?listType=search&list={q}"})
+    return out or _fallback_playlist(interests, mode)
+
+
+def _fallback_playlist(interests, mode):
+    low = interests.lower()
+    genre = "lofi"
+    if any(k in low for k in ("rock", "hip", "rap", "dance", "electronic", "afrobeat")):
+        genre = "afrobeats" if "afro" in low else "electronic"
+    elif any(k in low for k in ("gospel", "rnb", "soul", "jazz")):
+        genre = "r&b"
+    elif any(k in low for k in ("classical", "piano", "instrumental")):
+        genre = "classical"
+    word = "focus" if mode == "focus" else "energizing"
+    return [{"title": f"{genre.title()} {word} mix {i+1}", "artist": genre.title(),
+             "url": f"https://www.youtube.com/embed?listType=search&list={genre}+{word}+mix"}
+            for i in range(6)]
+
+
+# ---------------------------------------------------------------------------
+# 5) Persistent AI chat tutor (idea 1)
+# ---------------------------------------------------------------------------
+def chat(notes_context, message, interests="", academic_level="", history=None):
+    """Answer a student's question using ONLY the uploaded notes context.
+    history: optional list of {role:'user'|'ai', text:...} for continuity."""
+    context = (notes_context or "")[:5000]
+    interest_hint = f"Tailor examples to these interests: {interests}." if interests else ""
+    hist_txt = ""
+    if history:
+        lines = []
+        for h in history[-6:]:
+            who = "Student" if h.get("role") == "user" else "BT AI"
+            lines.append(f"{who}: {h.get('text','')}")
+        hist_txt = "\n".join(lines) + "\n"
+
+    prompt = f"""You are BT AI, a friendly tutor. Answer the student's question using ONLY the
+notes provided. If the notes don't cover it, say so and explain in simple English.
+Keep it clear and brief (under 180 words). {interest_hint}
+Academic level: {academic_level or 'school'}
+
+NOTES CONTEXT:
+{context}
+
+PREVIOUS CHAT:
+{hist_txt}
+Student's question: {message}"""
+    out = _call(prompt, temperature=0.5)
+    if out:
+        return out.strip()
+    return _fallback_chat(context, message, interests)
+
+
+def _fallback_chat(context, message, interests):
+    sentences = ai_engine.split_sentences(context)
+    if not sentences:
+        return "I don't have notes for this yet. Add some notes and I can help you."
+    # pick sentences that share a word with the question
+    qwords = set(re.findall(r"\b[a-z]{4,}\b", message.lower()))
+    hits = [s for s in sentences if any(w in s.lower() for w in qwords)]
+    source = hits[:2] or sentences[:2]
+    intro = ai_engine.personalized_explain(message[:50], interests)
+    return (f"{intro}\n\nBased on your notes: "
+            + "\n".join(f"• {s}" for s in source))
+
+
+# ---------------------------------------------------------------------------
+# 6) AI progress coach (idea 5)
+# ---------------------------------------------------------------------------
+def progress_coach(subject, total_questions, correct, wrong, weak_concepts, interests=""):
+    """Generate a weekly review summary + what to focus on."""
+    acc = round(correct * 100 / total_questions) if total_questions else 0
+    prompt = f"""You are BT AI, a study coach. For the subject '{subject}', the student answered
+{total_questions} knowledge checks, got {correct} right ({acc}%) and {wrong} wrong.
+Weak concepts they struggled with: {weak_concepts or 'none'}.
+Interests: {interests or 'none'}.
+Write a short, encouraging weekly review (under 200 words): 1) celebrate what's going well,
+2) point out the exact concepts to review, 3) give a concrete next-step study plan. Use a
+friendly, motivating tone."""
+    out = _call(prompt, temperature=0.6)
+    if out:
+        return out.strip()
+    if total_questions == 0:
+        return ("You haven't attempted any knowledge checks yet. Head to a lesson and take "
+                "your first check so BT AI can coach you.")
+    tip = (f"Focus on reviewing: {', '.join(weak_concepts[:3])}." if weak_concepts
+           else "You're on track — keep your streak going!")
+    return (f"You answered {total_questions} checks with {acc}% accuracy ({correct} right, "
+            f"{wrong} wrong) in {subject}. {tip} Your study streak is building nicely.")
+
+
+# ---------------------------------------------------------------------------
+# 7) AI explanation of a failed answer (idea 6)
+# ---------------------------------------------------------------------------
+def explain_answer(question, correct_answer, chosen, interests=""):
+    """Explain why the correct answer is right, in the student's preferred style."""
+    interest_hint = f"Use an analogy from these interests: {interests}." if interests else ""
+    prompt = f"""You are BT AI. The student answered a knowledge-check question WRONG.
+Question: {question}
+The correct answer was: {correct_answer}
+They chose: {chosen}
+Explain, kindly and simply, why '{correct_answer}' is correct and why the other answer was a
+mistake. Use an analogy to make it stick. Under 140 words. {interest_hint}"""
+    out = _call(prompt, temperature=0.5)
+    if out:
+        return out.strip()
+    return (f"The correct answer was '{correct_answer}'. Go back to the notes and re-read the "
+            f"part about this — it explains why that's the right choice. {ai_engine.SHONA['try_again']}")
+
+
+# ---------------------------------------------------------------------------
+# 8) AI-generated quiz from notes (idea: AI quizzes)
+# ---------------------------------------------------------------------------
+def generate_quiz(subject, notes_content, interests="", num=5, language="en"):
+    """Return a list of quiz questions {question, options, answer_index} based on notes."""
+    content = (notes_content or "")[:5000]
+    lang_note = "Answer in " + ("Shona" if language == "sn" else "Ndebele" if language == "nd" else "English")
+    prompt = f"""{lang_note}. You are BT AI. Create {num} multiple-choice quiz questions
+about this study material. Each question must be answerable ONLY from the notes.
+Return STRICT JSON (no markdown): an array of
+[{{"question":"...","options":["a","b","c","d"],"answer":2}}] where 'answer' is the 0-based
+index of the correct option. Make options plausible and varied.
+
+NOTES:
+{content}"""
+    fallback = _fallback_quiz(subject, content, num)
+    parsed = _safe_json(prompt, fallback=fallback, temperature=0.5)
+    if isinstance(parsed, dict) and "questions" in parsed:
+        parsed = parsed["questions"]
+    out = []
+    if isinstance(parsed, list):
+        for q in parsed[:num]:
+            if not isinstance(q, dict):
+                continue
+            options = q.get("options") or []
+            if len(options) < 2:
+                continue
+            try:
+                ai = int(q.get("answer", 0)) % len(options)
+            except Exception:
+                ai = 0
+            out.append({"question": str(q.get("question", "")), "options": list(options),
+                        "answer_index": ai})
+    return out or fallback
+
+
+def _fallback_quiz(subject, content, num):
+    chunks = ai_engine.chunk_content(content)
+    qs = []
+    for i, ch in enumerate(chunks):
+        qs += ai_engine.generate_questions(ch["content"], chunks, seed=i, limit=2)
+        if len(qs) >= num:
+            break
+    return qs[:num]
+
+
+# ---------------------------------------------------------------------------
+# 9) Teacher AI class insight (idea: teacher AI summary)
+# ---------------------------------------------------------------------------
+def class_summary(subject, health, weak_items, class_size, interests_hint="", language="en"):
+    """Generate a short teacher-facing summary of class performance."""
+    if not weak_items:
+        return (f"The class is performing well in {subject} (health {health or 'n/a'}%). "
+                "No critical weak spots right now.")
+    weak_lines = "; ".join(f"{w['student_name']} on {w['concept']} ({w['fail_count']}x)"
+                           for w in weak_items[:4])
+    prompt = f"""You are BT AI. Summarize for a teacher: class {subject} health {health}%,
+{class_size} students, top weak areas: {weak_lines}. Give a short paragraph (under 120 words):
+what's going well, the key knowledge gaps to reteach, and one actionable suggestion."""
+    out = _call(prompt, temperature=0.5)
+    if out:
+        return out.strip()
+    return (f"Class health is {health or 'n/a'}% in {subject} across {class_size} students. "
+            f"Areas needing attention: {weak_lines}. Consider re-teaching these concepts and "
+            f"assigning targeted practice.")
+
+
+# ---------------------------------------------------------------------------
+# 10) Study reminder text (idea: notifications)
+# ---------------------------------------------------------------------------
+def study_reminder(schedule_state, name=""):
+    """Return a friendly reminder based on the next scheduled session."""
+    if not schedule_state or not schedule_state.get("next"):
+        return "You have no study sessions scheduled yet."
+    n = schedule_state["next"]
+    h12 = n["hour"] % 12 or 12
+    ampm = "AM" if n["hour"] < 12 else "PM"
+    when = ("today" if n["day_offset"] == 0 else
+            "tomorrow" if n["day_offset"] == 1 else f"on {n['day']}")
+    subj = f" for {n['subject']}" if n.get("subject") else ""
+    return (f"{name + ', ' if name else ''}your next BT AI study session is at "
+            f"{h12}:00 {ampm} {when}{subj}. BT AI will greet you then!")
+
+
+# ---------------------------------------------------------------------------
+# 11) Exam simulation scoring message (idea: exam mode)
+# ---------------------------------------------------------------------------
+def exam_feedback(subject, correct, total):
+    pct = round(correct * 100 / total) if total else 0
+    if pct >= 80:
+        return f"Excellent! You scored {correct}/{total} ({pct}%) in {subject}. You've mastered this material."
+    if pct >= 60:
+        return f"Good effort — {correct}/{total} ({pct}%). Review the questions you missed and try again."
+    if pct >= 40:
+        return f"{correct}/{total} ({pct}%). You need more review in {subject}. BT AI recommends revisiting the notes."
+    return f"{correct}/{total} ({pct}%). Don't give up! Go back through the notes and retake the exam."
+
+

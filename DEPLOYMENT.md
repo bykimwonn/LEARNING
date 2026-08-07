@@ -152,6 +152,17 @@ A GitHub Action (`.github/workflows/validate.yml`) runs on every push / pull req
 So a bad `requirements.txt` now fails the **GitHub check** with a clear message instead of
 breaking the Render deploy.
 
+## Backing up your PostgreSQL data
+
+Your data lives in Render's managed Postgres. To back it up:
+- Render → your **database** → **Backups** tab → create a backup (free tier may be limited).
+- Or export manually with the `psql`/`pg_dump` connection info from the database's **Connections** tab.
+
+## Generate a secure SECRET_KEY
+
+In a terminal: `python -c "import secrets; print(secrets.token_hex(32))"` — paste the output
+into `SECRET_KEY` in Render's Environment tab.
+
 ## If you see "Internal Server Error"
 
 The app has been fixed for the Postgres-specific issue that caused a 500. A health check is

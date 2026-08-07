@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Exam Result · {{ subject }} · BT LEARNING{% endblock %}
+{% block content %}
+<div class="card center" style="max-width:600px;margin:50px auto">
+  {% set pct = (correct*100//total) if total else 0 %}
+<div style="font-size:56px">{{ '🎉' if pct >= 60 else '📖' }}</div>
+  <h1>Your Score</h1>
+  <div style="font-size:48px;font-weight:800;color:{{ '#16a34a' if pct>=60 else '#d97706' }}">
+    {{ correct }}/{{ total }}</div>
+  <div class="progressbar" style="margin:14px 0"><div style="width:{{ pct }}%"></div></div>
+  <p class="muted" style="font-size:17px">{{ feedback }}</p>
+  <div class="row" style="justify-content:center;gap:10px;margin-top:16px">
+    <a class="btn" href="{{ url_for('exam', subject=subject) }}">Retake exam</a>
+    <a class="btn ghost" href="{{ url_for('learn', subject=subject) }}">Back to lesson</a>
+  </div>
+</div>
+{% endblock %}

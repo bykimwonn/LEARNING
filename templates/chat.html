@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}BT AI Chat · {{ subject }} · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>💬 BT AI Tutor · {{ subject }}</h1>
+    <p class="muted">Ask anything about this subject — BT AI answers using ONLY your uploaded notes{% if ai_enabled %}{% endif %}.</p>
+  </div>
+  <a class="btn small ghost" href="{{ url_for('learn', subject=subject) }}">← Back to lesson</a>
+</div>
+
+<div class="card" style="max-width:720px">
+  <div style="max-height:380px;overflow:auto;padding:8px;border:1px solid var(--line);border-radius:12px;background:#fbfcff">
+    {% for h in history %}
+      {% if h.role == 'user' %}
+        <div style="text-align:right;margin:8px 0">
+          <span class="pill">{{ h.text }}</span>
+        </div>
+      {% else %}
+        <div style="margin:8px 0;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px">
+          <b style="color:var(--brand);font-size:12px">🤖 BT AI</b>
+          <div class="small" style="white-space:pre-wrap;margin-top:4px">{{ h.text }}</div>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <form method="post" action="{{ url_for('ai_chat') }}" style="margin-top:12px">
+    <input type="hidden" name="subject" value="{{ subject }}">
+    <div class="row">
+      <input name="message" placeholder="Ask BT AI about {{ subject }}…" required style="flex:1">
+      <button class="btn">Send</button>
+    </div>
+  </form>
+  <p class="small muted" style="margin-top:8px">💡 BT AI explains from your notes. For a fresh start,
+     <a href="{{ url_for('student_home') }}">clear chat</a>.</p>
+</div>
+{% endblock %}

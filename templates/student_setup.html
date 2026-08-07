@@ -9,6 +9,12 @@
     <form method="post">
       <label>Interests / hobbies</label>
       <input name="interests" value="{{ user.interests or '' }}" placeholder="e.g. soccer, music, gaming, reading">
+      <label>🗣️ Language preference</label>
+      <select name="language">
+        <option value="en" {{ 'selected' if (user.language or 'en')=='en' }}>English</option>
+        <option value="sn" {{ 'selected' if user.language=='sn' }}>English + Shona</option>
+        <option value="nd" {{ 'selected' if user.language=='nd' }}>English + Ndebele</option>
+      </select>
       <div class="row">
         <div style="flex:1"><label>Study starts at (24h)</label>
           <input type="number" name="start_hour" min="0" max="23" value="{{ user.study_start_hour }}"></div>

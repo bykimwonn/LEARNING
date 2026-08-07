@@ -1,0 +1,34 @@
+{% extends "teacher/_base.html" %}
+{% block title %}BT AI Insights · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🧠 BT AI Insights</h1>
+    <p class="muted">{{ sel.class_name if sel else '' }} · {{ sel.subject if sel else '' }} —
+       an AI summary of class performance{% if ai_enabled %} from Groq{% endif %}.</p></div>
+</div>
+
+{% for ins in insights %}
+<div class="concept" style="border-left-color:var(--brand2)">
+  <div class="step">BT AI Class Summary · {{ ins.subject }}</div>
+  <h2 style="margin-top:4px">Class health: {{ ins.health if ins.health is not none else 'n/a' }}%</h2>
+  <div style="white-space:pre-wrap;background:#fbfcff;border:1px solid var(--line);border-radius:12px;padding:14px">
+    {{ ins.summary }}</div>
+  {% if ins.weak_items %}
+    <div style="margin-top:12px">
+      <b>Top weak areas:</b>
+      {% for w in ins.weak_items[:5] %}
+        <span class="pill r">{{ w.student_name }} · {{ w.concept }} ({{ w.fail_count }}×)</span>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="card"><p class="muted">No class selected yet.</p></div>
+{% endfor %}
+{% if not ai_enabled %}
+<div class="hintbox" style="background:#e6f6f7;border-color:#b6e6ea">
+  <b>Note:</b> Add <code>GROQ_API_KEY</code> on Render for full AI-written insights.
+  Currently using the built-in summary engine.
+</div>
+{% endif %}
+{% endblock %}

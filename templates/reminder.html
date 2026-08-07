@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Next Session · BT LEARNING{% endblock %}
+{% block content %}
+<div class="card center" style="max-width:560px;margin:50px auto">
+  <div style="font-size:52px">⏰</div>
+  <h1>Your Next Study Session</h1>
+  <p class="muted" style="font-size:18px">{{ message }}</p>
+  <p class="small muted">The timetable gatekeeper will greet you and open your lesson automatically
+     at the right time. Use your break to rest up!</p>
+  <a class="btn" href="{{ url_for('student_home') }}">Back to dashboard</a>
+</div>
+{% endblock %}

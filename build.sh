@@ -21,6 +21,7 @@ pip install \
   "sqlalchemy>=2.0" \
   "psycopg2-binary>=2.9" \
   "gunicorn>=21.0" \
-  "pypdf>=4.0"
+  "pypdf>=4.0" \
+  "groq>=1.0"
 
 echo "► Build complete."

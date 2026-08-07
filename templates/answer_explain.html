@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}BT AI Explanation · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>💡 BT AI · Why that answer</h1>
+    <p class="muted">{{ subject }} — explained in your learning style{% if ai_enabled %}{% endif %}.</p>
+  </div>
+  <a class="btn small ghost" href="{{ url_for('learn', subject=subject) }}">← Back to lesson</a>
+</div>
+
+<div class="concept" style="border-left-color:var(--good)">
+  <div class="step">The Question</div>
+  <p><b>{{ question }}</b></p>
+</div>
+<div class="concept" style="border-left-color:var(--good)">
+  <div class="step">Correct answer</div>
+  <h2 style="margin-top:4px">✅ {{ correct }}</h2>
+</div>
+<div class="concept" style="border-left-color:var(--brand2)">
+  <div class="step">BT AI Explanation</div>
+  <div style="white-space:pre-wrap">{{ explanation }}</div>
+</div>
+{% if not ai_enabled %}
+<div class="hintbox" style="background:#e6f6f7;border-color:#b6e6ea">
+  <b>Note:</b> BT AI used its built-in engine because Groq wasn't reachable. Add
+  <code>GROQ_API_KEY</code> in Render for full AI answers.
+</div>
+{% endif %}
+{% endblock %}
