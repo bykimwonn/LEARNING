@@ -122,14 +122,9 @@ A common cause is a **corrupted `requirements.txt`** — e.g. a stray line of Py
 requirements.txt` then errors with:
 `ERROR: Invalid requirement: 'import db, io, app as appmod'`.
 
-**This is now fixed automatically.** The Render build command should be **`./build.sh`** (or
-`bash ./build.sh`), a robust script that **never reads `requirements.txt`** — it installs the
-core dependencies explicitly. So a stray line like `import db, io, app as appmod` or `set -e`
-can never break the build again.
-
-So just commit `build.sh` + `render.yaml` (build command `./build.sh`) and re-push — the build
-will succeed even if `requirements.txt` contains garbage. (This is the fix for the screenshot you
-sent.)
+The Render build command should be **`./build.sh`** (or `bash ./build.sh`). The script installs
+the dependencies from `requirements.txt`, so local installs, CI, and Render use the same
+dependency set. Remove any stray Python or shell lines before redeploying.
 
 To keep things tidy, still try to keep `requirements.txt` to these lines:
 ```
@@ -138,6 +133,7 @@ sqlalchemy>=2.0
 psycopg2-binary>=2.9
 gunicorn>=21.0
 pypdf>=4.0
+groq>=1.0,<2.0
 ```
 
 ### CI validation on every push

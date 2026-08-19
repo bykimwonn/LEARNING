@@ -61,12 +61,12 @@
 
   {% if advance_msg %}<div class="msg ai" style="border-left:5px solid var(--good);background:#f0fbf3">
     <div class="who" style="color:var(--good)">Progress</div>
-    <div class="text"><p>{{ advance_msg|safe }}</p></div>
+    <div class="text"><p>{{ advance_msg }}</p></div>
   </div>{% endif %}
 
   {% if roadblock_msg %}<div class="roadblock">
     <span class="roadblock-badge">🚧 Roadblock</span>
-    <p style="margin:8px 0 0">{{ roadblock_msg|safe }}</p>
+    <p style="margin:8px 0 0">{{ roadblock_msg }}</p>
   </div>{% endif %}
 
   <!-- AI greeting -->
@@ -138,7 +138,7 @@
   {% if wrong_msg %}
     <div class="msg ai">
       <div class="who">BT Tutor · Re-explaining</div>
-      <div class="text"><p>{{ wrong_msg|safe }}</p></div>
+      <div class="text"><p>{{ wrong_msg }}</p></div>
     </div>
   {% endif %}
 
