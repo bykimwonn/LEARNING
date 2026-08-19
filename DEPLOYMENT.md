@@ -65,6 +65,11 @@ Teachers and students then log in through the normal portals.
 | `ADMIN_PASSWORD` | Initial admin password |
 | `ADMIN_NAME` | Display name for the initial admin |
 
+> If the service was created manually rather than from this Blueprint, add
+> `DATABASE_URL` in the Render Environment tab using your PostgreSQL database's
+> **Internal Database URL**. The app will boot without it for recovery, but SQLite
+> data on Render is temporary and accounts will not survive a redeploy.
+
 ## How persistence works
 
 Render's filesystem is ephemeral, so all data lives in the managed **PostgreSQL** database.

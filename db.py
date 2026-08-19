@@ -14,8 +14,6 @@ from sqlalchemy import create_engine, text
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
-if os.environ.get("RENDER") and not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL must be configured in production to preserve accounts")
 IS_PG = bool(DATABASE_URL)
 
 if DATABASE_URL:
@@ -29,6 +27,9 @@ else:
         "DATABASE_PATH", os.path.join(BASE_DIR, "bt.db"))
     os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
     engine = create_engine(f"sqlite:///{DB_PATH}")
+    if os.environ.get("RENDER"):
+        print("[database] WARNING: DATABASE_URL is missing; using temporary SQLite. "
+              "Configure PostgreSQL to preserve accounts across redeploys.")
 
 
 # ---------------------------------------------------------------------------
