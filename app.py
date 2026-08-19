@@ -1202,7 +1202,9 @@ def ai_explain():
 @role_required("school_student", "independent")
 def ai_music():
     u = current_user()
-    return render_template("music_home.html", user=u, ai_enabled=btai.ai_enabled())
+    return render_template("music_home.html", user=u,
+                           music_profile=btai.music_profile(u["interests"]),
+                           ai_enabled=btai.ai_enabled())
 
 
 @app.route("/ai/playlist", methods=["GET", "POST"])
@@ -1214,8 +1216,23 @@ def ai_playlist():
     subject = request.form.get("subject") if request.method == "POST" else ""
     mode = mode if mode in ("focus", "break") else "focus"
     songs = btai.recommend_playlist(u["interests"], mode)
+    profile = btai.music_profile(u["interests"])
     return render_template("playlist.html", user=u, songs=songs, mode=mode,
+                           music_profile=profile,
                            subject=subject, ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/playlist-data")
+@login_required
+@role_required("school_student", "independent")
+def ai_playlist_data():
+    """Return a learner's current playlist for the in-lesson player."""
+    u = current_user()
+    mode = request.args.get("mode", "focus")
+    if mode not in ("focus", "break"):
+        mode = "focus"
+    return jsonify({"mode": mode, "profile": btai.music_profile(u["interests"]),
+                    "songs": btai.recommend_playlist(u["interests"], mode)})
 
 
 @app.route("/ai/video", methods=["GET", "POST"])
@@ -1378,8 +1395,23 @@ def teacher_ai_insights():
         students = db.students_in_class(class_id)
         summary = btai.class_summary(subject, health, weak_items[:5], len(students),
                                      language=u.get("language") or "en")
+        plans = []
+        for student in students:
+            student_weaknesses = db.weakness_for_student_subject(student["id"], subject)
+            attempts = len(db.attempts_for_user_subject(student["id"], subject))
+            if student_weaknesses or attempts:
+                plans.append({
+                    "student": student,
+                    "attempts": attempts,
+                    "weaknesses": student_weaknesses,
+                    "plan": btai.intervention_plan(
+                        student["name"], subject, student_weaknesses, attempts,
+                        student.get("interests") or ""),
+                })
+        plans.sort(key=lambda item: max(
+            (w["fail_count"] for w in item["weaknesses"]), default=0), reverse=True)
         insights.append({"subject": subject, "health": health, "summary": summary,
-                         "weak_items": weak_items})
+                         "weak_items": weak_items, "plans": plans})
     return render_template("teacher/ai_insights.html", user=u, links=links, sel=sel,
                            insights=insights, ai_enabled=btai.ai_enabled(),
                            notifications=teacher_notification_count())

@@ -14,9 +14,15 @@ from sqlalchemy import create_engine, text
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
+if os.environ.get("RENDER") and not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL must be configured in production to preserve accounts")
 IS_PG = bool(DATABASE_URL)
 
 if DATABASE_URL:
+    # Render and older PostgreSQL providers may still return the legacy
+    # postgres:// scheme, which SQLAlchemy 2 no longer accepts.
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = "postgresql+psycopg2://" + DATABASE_URL[len("postgres://"):]
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 else:
     DB_PATH = os.environ.get(
@@ -183,11 +189,13 @@ _PG_DDL = [
 # users
 # ---------------------------------------------------------------------------
 def user_by_student_id(sid):
-    return _fetch_one("SELECT * FROM users WHERE student_id=:s", {"s": sid})
+    return _fetch_one("SELECT * FROM users WHERE lower(trim(student_id))=lower(trim(:s))",
+                      {"s": sid})
 
 
 def user_by_email(email):
-    return _fetch_one("SELECT * FROM users WHERE email=:e", {"e": email})
+    return _fetch_one("SELECT * FROM users WHERE lower(trim(email))=lower(trim(:e))",
+                      {"e": email})
 
 
 def get_user(uid):

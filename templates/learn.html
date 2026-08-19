@@ -186,7 +186,7 @@
   width:280px;overflow:hidden">
   <div style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;padding:8px 12px;
     display:flex;justify-content:space-between;align-items:center">
-    <b style="font-size:13px">🎵 {{ 'Focus' if study_ok else 'Break' }} music</b>
+    <b id="musicTitle" style="font-size:13px">🎵 {{ 'Focus' if study_ok else 'Break' }} music</b>
     <button onclick="closePlayer()" style="background:none;border:0;color:#fff;font-size:16px;cursor:pointer">✕</button>
   </div>
   <iframe id="cornerFrame" src="" title="music" style="width:100%;height:120px;border:0"></iframe>
@@ -249,13 +249,24 @@ const studyOk = {{ 'true' if study_ok else 'false' }};
 let studyRemaining = REMAINING;
 
 function openPlayer(mode){
-  window.open('/ai/playlist?mode='+mode, '_blank');
+  fetch('/ai/playlist-data?mode='+encodeURIComponent(mode))
+    .then(response => response.json())
+    .then(data => {
+      const song = data.songs && data.songs[0];
+      if(!song) return;
+      document.getElementById('cornerFrame').src = song.url;
+      document.getElementById('musicTitle').textContent =
+        '🎵 ' + (mode === 'break' ? 'Break' : 'Focus') + ' · ' + song.title;
+      document.getElementById('cornerPlayer').style.display='block';
+    })
+    .catch(() => window.open('/ai/playlist?mode='+mode, '_blank'));
 }
 function closePlayer(){
+  document.getElementById('cornerFrame').src='';
   document.getElementById('cornerPlayer').style.display='none';
 }
 function switchToBreak(){
-  if(studyOk) openPlayer('break');
+  openPlayer('break');
 }
 
 // Watch the study timer: when it reaches 0, offer the break mix.

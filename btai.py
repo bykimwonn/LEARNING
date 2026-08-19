@@ -218,7 +218,8 @@ Return STRICT JSON: {{"query": "concise search phrase (5-10 words)"}}"""
 # ---------------------------------------------------------------------------
 def recommend_playlist(interests="", mode="focus"):
     """Return a list of songs {title, artist, url}. mode: 'focus' or 'break'."""
-    interest_hint = interests or "generic calm"
+    profile = music_profile(interests)
+    interest_hint = profile["style"]
     prompt = f"""You are BT AI. The student likes: {interest_hint}.
 Generate a '{mode}' playlist of 8 songs — for study/focus, pick calm, low-distraction,
 instrumental or soft tracks; for break, pick upbeat, energising tracks they'd enjoy.
@@ -241,6 +242,26 @@ Return STRICT JSON (no markdown): an array of objects:
                 out.append({"title": title, "artist": artist,
                             "url": f"https://www.youtube.com/embed?listType=search&list={q}"})
     return out or _fallback_playlist(interests, mode)
+
+
+def music_profile(interests=""):
+    """Detect a lightweight music profile without requiring an external music API."""
+    text = (interests or "").lower()
+    styles = []
+    for keys, label in (
+        (("afrobeat", "afro beats", " amapiano", "dance"), "Afrobeats and amapiano"),
+        (("rock", "metal", "guitar"), "rock and guitar"),
+        (("rap", "hip hop", "hip-hop"), "hip-hop and rap"),
+        (("gospel", "church"), "gospel and uplifting"),
+        (("jazz", "soul", "rnb", "r&b"), "jazz, soul and R&B"),
+        (("classical", "piano", "orchestra"), "classical and piano"),
+        (("electronic", "edm", "techno"), "electronic"),
+    ):
+        if any(key in text for key in keys):
+            styles.append(label)
+    style = ", ".join(styles) if styles else "calm, melodic music"
+    return {"style": style, "source": "learner interests", "focus_rule":
+            "instrumental, lyric-light, steady tempo"}
 
 
 def _fallback_playlist(interests, mode):
@@ -413,6 +434,36 @@ what's going well, the key knowledge gaps to reteach, and one actionable suggest
     return (f"Class health is {health or 'n/a'}% in {subject} across {class_size} students. "
             f"Areas needing attention: {weak_lines}. Consider re-teaching these concepts and "
             f"assigning targeted practice.")
+
+
+def intervention_plan(student_name, subject, weaknesses, attempts, interests=""):
+    """Create teacher-facing next steps for one learner from recorded evidence."""
+    weak_lines = "; ".join(
+        f"{w['concept']} ({w['fail_count']} failures)" for w in weaknesses[:5]
+    ) or "no unresolved weakness alerts"
+    prompt = f"""You are BT AI supporting a teacher. Create a concise intervention plan for
+student {student_name} in {subject}. The student has {attempts} recorded knowledge-check
+attempts and these unresolved alerts: {weak_lines}. Interests: {interests or 'unknown'}.
+Return plain text with exactly these headings:
+Priority:
+Reteach:
+Practice:
+Check-in:
+Keep it under 100 words, specific and practical. Do not invent scores or facts."""
+    out = _call(prompt, temperature=0.4)
+    if out:
+        return out.strip()
+    if weaknesses:
+        concepts = ", ".join(w['concept'] for w in weaknesses[:3])
+        return (f"Priority: Address {concepts}.\n"
+                f"Reteach: Model each concept with one worked example, then ask the student "
+                "to explain the key step in their own words.\n"
+                f"Practice: Assign 3 short questions focused on {concepts}.\n"
+                "Check-in: Review one answer next lesson and mark the alert resolved only "
+                "after a successful fresh check.")
+    return ("Priority: Maintain momentum.\nReteach: Ask the student to summarize the "
+            "latest concept.\nPractice: Use one mixed review question.\n"
+            "Check-in: Revisit progress next lesson.")
 
 
 # ---------------------------------------------------------------------------
