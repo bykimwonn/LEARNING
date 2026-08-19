@@ -11,6 +11,7 @@ import csv
 import io
 import json
 import datetime
+import secrets
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import (Flask, request, session, redirect, url_for,
@@ -23,9 +24,12 @@ import btai
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
 secret_key = os.environ.get("SECRET_KEY")
-if not secret_key and os.environ.get("RENDER"):
-    raise RuntimeError("SECRET_KEY must be configured in production")
-app.secret_key = secret_key or "bt-learning-local-dev-secret"
+if not secret_key:
+    secret_key = secrets.token_hex(32)
+    if os.environ.get("RENDER"):
+        print("[security] WARNING: SECRET_KEY is missing; generated a temporary key. "
+              "Set SECRET_KEY in Render to preserve login sessions across restarts.")
+app.secret_key = secret_key
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 app.config["UPLOAD_FOLDER"] = os.path.join(BASE_DIR, "uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
