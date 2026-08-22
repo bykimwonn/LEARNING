@@ -11,7 +11,7 @@
 <div class="top">
   <div class="wrap">
     <a class="brand" href="{{ url_for('dashboard') }}">BT LEARNING
-      <small>Owned by Bongani Tshuma</small></a>
+      <small>Learn · Interact · Achieve</small></a>
     <nav class="nav">
       {% if current_user.role == 'admin' %}
         <a href="{{ url_for('admin_home') }}">Admin Panel</a>
@@ -37,7 +37,7 @@
   {% endwith %}
   {% block content %}{% endblock %}
 </div>
-<footer>BT LEARNING — Owned by BONGANI TSHUMA · Prototype built with ❤️ for smarter, Shona-friendly learning</footer>
+<footer>® BT LEARNING · A Trademark of Bongani Tshuma · All Rights Reserved</footer>
 {% block scripts %}{% endblock %}
 </body>
 </html>

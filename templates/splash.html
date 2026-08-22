@@ -1,11 +1,146 @@
-{% extends "base.html" %}
-{% block title %}Welcome · BT LEARNING{% endblock %}
-{% block content %}
-<div class="hero">
-  <div class="owner-chip">👑 Owned by <b>{{ owner }}</b></div>
-  <h1>BT LEARNING</h1>
-  <p>Your AI-powered study companion. Learn from your own notes, unlock concepts
-     step by step, master past exams, and rise up the class rankings.</p>
-  <a class="btn" href="{{ url_for('choose') }}">Get Started</a>
-</div>
-{% endblock %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BT LEARNING</title>
+<style>
+  :root{
+    --navy:#0b1f3a;      /* primary - deep trustworthy navy */
+    --navy2:#143d63;     /* secondary blue */
+    --gold:#b08d3e;      /* accent - refined gold */
+    --ink:#12233c;
+    --muted:#5b6b82;
+    --light:#f6f8fb;
+    --line:#e4e9f0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',-apple-system,system-ui,Roboto,Arial,sans-serif;
+    color:var(--ink);background:#fff;-webkit-font-smoothing:antialiased}
+
+  /* Top bar */
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 6vw;border-bottom:1px solid var(--line)}
+  .logo{display:flex;align-items:center;gap:12px}
+  .logo-mark{width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--navy),var(--navy2));
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px}
+  .logo-name{font-size:20px;font-weight:800;color:var(--navy);letter-spacing:.3px}
+  .logo-sub{font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase}
+  .topbar a{text-decoration:none}
+
+  /* Hero */
+  .hero{padding:70px 6vw 40px;text-align:center;background:linear-gradient(180deg,#fff 0%,var(--light) 100%)}
+  .eyebrow{display:inline-block;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--navy);
+    font-weight:700;border:1px solid var(--line);padding:8px 18px;border-radius:999px;background:#fff;
+    box-shadow:0 1px 2px rgba(11,31,58,.05)}
+  .hero h1{font-size:clamp(34px,6vw,58px);font-weight:800;color:var(--navy);margin:28px auto 8px;line-height:1.08;
+    letter-spacing:-.5px;max-width:900px}
+  .hero h1 .accent{color:var(--gold)}
+  .hero .sub{margin:18px auto 34px;max-width:680px;font-size:clamp(16px,2.2vw,19px);color:var(--muted);line-height:1.6}
+
+  /* CTA buttons */
+  .cta{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+  .btn-primary{display:inline-block;text-decoration:none;background:var(--navy);color:#fff;font-weight:700;
+    font-size:16px;padding:15px 34px;border-radius:8px;transition:.2s;box-shadow:0 6px 18px rgba(11,31,58,.18)}
+  .btn-primary:hover{background:var(--navy2);transform:translateY(-2px);box-shadow:0 10px 26px rgba(11,31,58,.25)}
+  .btn-ghost{display:inline-block;text-decoration:none;color:var(--navy);font-weight:700;font-size:16px;
+    padding:15px 34px;border-radius:8px;border:1px solid var(--line);transition:.2s;background:#fff}
+  .btn-ghost:hover{border-color:var(--navy);transform:translateY(-2px)}
+
+  /* Feature strip */
+  .strip{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;max-width:1000px;margin:46px auto 0}
+  .stat{flex:1;min-width:150px;padding:22px 18px;background:#fff;border:1px solid var(--line);border-radius:10px;text-align:center}
+  .stat .num{font-size:28px;font-weight:800;color:var(--navy)}
+  .stat .label{font-size:13px;color:var(--muted);margin-top:4px}
+
+  /* Feature grid */
+  .section{padding:60px 6vw;max-width:1200px;margin:0 auto}
+  .section h2{font-size:30px;color:var(--navy);font-weight:800;text-align:center;margin-bottom:8px;letter-spacing:-.3px}
+  .section .lead{text-align:center;color:var(--muted);max-width:620px;margin:0 auto 40px;font-size:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px;transition:.2s;box-shadow:0 1px 2px rgba(11,31,58,.04)}
+  .card:hover{transform:translateY(-4px);box-shadow:0 14px 34px rgba(11,31,58,.1);border-color:#c9d3e0}
+  .card .ico{font-size:30px;margin-bottom:14px}
+  .card h3{margin:0 0 8px;font-size:18px;color:var(--navy);font-weight:700}
+  .card p{margin:0;font-size:14px;color:var(--muted);line-height:1.55}
+
+  /* Banner */
+  .banner{margin:30px 6vw;padding:48px 34px;border-radius:14px;color:#fff;text-align:center;
+    background:linear-gradient(120deg,var(--navy),var(--navy2))}
+  .banner h2{font-size:28px;margin:0 0 10px;font-weight:800;color:#fff}
+  .banner p{color:#cbd6e4;max-width:640px;margin:0 auto 24px;font-size:16px;line-height:1.6}
+  .banner .btn-white{display:inline-block;background:var(--gold);color:#fff;font-weight:700;text-decoration:none;
+    padding:14px 32px;border-radius:8px;font-size:16px;transition:.2s}
+  .banner .btn-white:hover{background:#c8a64f;transform:translateY(-2px)}
+
+  footer{background:#fafbfc;border-top:1px solid var(--line);padding:34px 6vw;text-align:center}
+  footer .foot-brand{font-weight:800;color:var(--navy);font-size:16px}
+  footer .trademark{color:var(--muted);font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+
+  <header class="topbar">
+    <a class="logo" href="{{ url_for('splash') }}">
+      <div class="logo-mark">BT</div>
+      <div>
+        <div class="logo-name">BT LEARNING</div>
+        <div class="logo-sub">Learn · Interact · Achieve</div>
+      </div>
+    </a>
+    <div style="display:flex;gap:14px;align-items:center">
+      <a class="btn-ghost" href="{{ url_for('login_staff') }}" style="padding:10px 20px;font-size:14px">Staff Login</a>
+    </div>
+  </header>
+
+  <section class="hero">
+    <span class="eyebrow">Welcome to BT LEARNING</span>
+    <h1>Learn. Interact. <span class="accent">Produce High Grades.</span></h1>
+    <div class="sub">A modern AI-powered learning platform that turns your own notes into a guided,
+      disciplined study experience — so you achieve real, lasting improvement.</div>
+    <div class="cta">
+      <a class="btn-primary" href="{{ url_for('choose') }}">Get Started</a>
+      <a class="btn-ghost" href="{{ url_for('login_school') }}">Student Login</a>
+    </div>
+
+    <div class="strip">
+      <div class="stat"><div class="num">100%</div><div class="label">AI-Guided Study</div></div>
+      <div class="stat"><div class="num">🎓</div><div class="label">Every Subject</div></div>
+      <div class="stat"><div class="num">📈</div><div class="label">Proven Progress</div></div>
+      <div class="stat"><div class="num">🧠</div><div class="label">Personalised Tutor</div></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Everything you need to succeed</h2>
+    <p class="lead">From your notes to your final grade — BT LEARNING guides every step with your own
+      AI tutor, smart scheduling, and performance tracking.</p>
+    <div class="grid">
+      <div class="card"><div class="ico">🧠</div><h3>BT AI Tutor</h3>
+        <p>Explains your notes in simple, easy-to-understand language and personalises every lesson
+           to how you learn best.</p></div>
+      <div class="card"><div class="ico">📚</div><h3>Learn from Your Notes</h3>
+        <p>Upload your study materials and BT AI builds structured, step-by-step lessons from them.</p></div>
+      <div class="card"><div class="ico">🗓️</div><h3>Smart Timetable</h3>
+        <p>Your own AI-built study schedule with a friendly gatekeeper that keeps you on track.</p></div>
+      <div class="card"><div class="ico">🎯</div><h3>Knowledge Checks</h3>
+        <p>Prove you understand each concept before moving on — no skipping ahead.</p></div>
+      <div class="card"><div class="ico">📝</div><h3>Exam Simulations</h3>
+        <p>Timed mock exams and AI-written quizzes from your past papers to sharpen your skills.</p></div>
+      <div class="card"><div class="ico">📈</div><h3>Progress &amp; Rankings</h3>
+        <p>Track your accuracy, streaks and ELO score as you climb the class rankings.</p></div>
+    </div>
+  </section>
+
+  <section class="banner">
+    <h2>Start improving today</h2>
+    <p>Join BT LEARNING and experience a smarter way to study — built around you, your notes, and your goals.</p>
+    <a class="btn-white" href="{{ url_for('choose') }}">Create an Account</a>
+  </section>
+
+  <footer>
+    <div class="foot-brand">BT LEARNING</div>
+    <div class="trademark">® BT LEARNING · A Trademark of Bongani Tshuma · All Rights Reserved</div>
+  </footer>
+
+</body>
+</html>
