@@ -23,6 +23,19 @@
   <button class="btn small ghost" onclick="openPlayer('focus')">🎧 Listen while learning</button>
 </div>
 
+<!-- Subject switcher -->
+<div class="row" style="gap:8px;margin:8px 0;flex-wrap:wrap;align-items:center">
+  <span class="pill b">📚 Subjects:</span>
+  {% for s in all_subjects %}
+    <a class="btn small {{ '' if s==subject else 'ghost' }}" href="{{ url_for('learn', subject=s) }}">{{ s }}</a>
+  {% endfor %}
+  <span style="flex:1"></span>
+  {% if all_subjects and all_subjects|length > 1 %}
+    <a class="btn small ghost" href="{{ url_for('learn_cross_subject', subject=subject, strong_subject=all_subjects[0] if all_subjects[0]!=subject else all_subjects[1]) }}">🔗 Explain with another subject</a>
+  {% endif %}
+  <a class="btn small ghost" href="{{ url_for('ai_talk') }}?subject={{ subject }}">💬 Chat with BT AI</a>
+</div>
+
 <div class="learn-layout">
 <!-- ============ 2. PROGRESSION SIDEBAR ============ -->
 <aside class="sidebar">

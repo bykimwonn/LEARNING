@@ -26,6 +26,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "bt-learning-demo-secret")
 app.config["UPLOAD_FOLDER"] = os.path.join(BASE_DIR, "uploads")
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024  # 25 MB book uploads
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 
@@ -794,8 +795,9 @@ def student_home():
         })
     weaknesses = db.list_weaknesses(user_id=u["id"])
     my_notes = [n for n in db.list_notes() if n["owner_id"] == u["id"]]
+    books = db.list_books(u["id"])
     return render_template("student_home.html", user=u, subjects=subjects_with_progress,
-                           weaknesses=weaknesses, my_notes=my_notes,
+                           weaknesses=weaknesses, my_notes=my_notes, books=books,
                            ai_enabled=btai.ai_enabled())
 
 
@@ -932,6 +934,9 @@ def learn(subject):
     blend = bool(u["blend_regional"])
     personalized = ai.personalized_explain(chunk["title"], u["interests"], blend=blend)
 
+    # subject switcher: list all the student's subjects so they can jump between them
+    all_subjects = db.subjects_for_student(u)
+
     return render_template("learn.html", user=u, subject=subject, course=course,
                            idx=idx, chunk=chunk, questions=questions, is_last=is_last,
                            study_ok=study_ok, now=now, feedback=feedback,
@@ -941,7 +946,8 @@ def learn(subject):
                            personalized=personalized,
                            study_msg=study_msg,
                            greeting=ai.greet(u["interests"], now.hour, blend=blend),
-                           shona=ai.SHONA, ai_context=ai_context)
+                           shona=ai.SHONA, ai_context=ai_context,
+                           all_subjects=all_subjects)
 
 
 @app.route("/learn/<subject>/answer", methods=["POST"])
@@ -1194,12 +1200,74 @@ def ai_explain():
                            ai_enabled=btai.ai_enabled())
 
 
+@app.route("/ai/video", methods=["GET", "POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_video():
+    u = current_user()
+    if request.method == "POST":
+        subject = request.form.get("subject", "")
+        topic = request.form.get("topic", "")
+    else:
+        subject = request.args.get("subject", "")
+        topic = request.args.get("topic", "")
+    video = btai.recommend_video(subject, topic, u["interests"])
+    return render_template("video.html", user=u, video=video, subject=subject,
+                           ai_enabled=btai.ai_enabled())
+
+
+# ---------------------------------------------------------------------------
+# MUSIC FAVORITES + BREAK PLAYLIST (autoplay + length-aware)
+# ---------------------------------------------------------------------------
 @app.route("/ai/music")
 @login_required
 @role_required("school_student", "independent")
 def ai_music():
     u = current_user()
-    return render_template("music_home.html", user=u, ai_enabled=btai.ai_enabled())
+    favs = db.list_music_favorites(u["id"])
+    return render_template("music_home.html", user=u, favorites=favs,
+                           ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/music/favorite", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_music_favorite():
+    u = current_user()
+    name = request.form.get("name", "")
+    kind = request.form.get("kind", "artist")
+    if name.strip():
+        db.add_music_favorite(u["id"], name, kind)
+        flash(f"Added '{name.strip()}' to your favourites.", "success")
+    return redirect(url_for("ai_music"))
+
+
+@app.route("/ai/music/favorite/<int:fid>/delete", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_music_favorite_delete(fid):
+    db.delete_music_favorite(fid)
+    return redirect(url_for("ai_music"))
+
+
+@app.route("/ai/break", methods=["GET", "POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_break():
+    """Auto-generated break playlist from favorites, autoplay + length-aware."""
+    u = current_user()
+    favs = db.list_music_favorites(u["id"])
+    break_minutes = u.get("break_length") or 15
+    if request.method == "POST":
+        m = request.form.get("minutes")
+        try:
+            break_minutes = int(m)
+        except Exception:
+            pass
+    playlist = btai.break_playlist(favs, break_minutes, u["interests"])
+    return render_template("break.html", user=u, playlist=playlist,
+                           favorites=favs, break_minutes=break_minutes,
+                           ai_enabled=btai.ai_enabled())
 
 
 @app.route("/ai/playlist", methods=["GET", "POST"])
@@ -1215,19 +1283,145 @@ def ai_playlist():
                            subject=subject, ai_enabled=btai.ai_enabled())
 
 
-@app.route("/ai/video", methods=["GET", "POST"])
+# ---------------------------------------------------------------------------
+# BOOK UPLOAD (up to 25MB) with progress + SOURCES library
+# ---------------------------------------------------------------------------
+@app.route("/book/upload", methods=["POST"])
 @login_required
 @role_required("school_student", "independent")
-def ai_video():
+def book_upload():
     u = current_user()
-    if request.method == "POST":
-        subject = request.form.get("subject", "")
-        topic = request.form.get("topic", "")
+    title = request.form.get("title", "").strip()
+    subject = request.form.get("subject", "").strip()
+    file = request.files.get("file")
+    if not file or not file.filename:
+        flash("Please select a book file to upload.", "error")
+        return redirect(url_for("student_home"))
+    size = file.seek(0, 2); file.seek(0)
+    if not title:
+        title = file.filename.rsplit(".", 1)[0]
+    # save the file
+    safe_name = f"u{u['id']}_{int(datetime.datetime.now().timestamp())}_{file.filename.replace(' ','_')}"
+    path = os.path.join(app.config["UPLOAD_FOLDER"], safe_name)
+    file.save(path)
+    # extract text
+    ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
+    if ext == "pdf":
+        text = _extract_pdf_file(path)
+    elif ext in ("txt", "md"):
+        text = open(path, encoding="utf-8", errors="ignore").read()
     else:
+        # fallback: try pdf extraction or decode as text
+        try:
+            text = _extract_pdf_file(path)
+        except Exception:
+            text = open(path, encoding="utf-8", errors="ignore").read()
+    if not text or not text.strip():
+        flash("Could not read any text from that file. Upload a PDF or text file.", "error")
+        return redirect(url_for("student_home"))
+    # create note + chunks
+    nid = db.add_note(title=title, subject=subject or "General", category="notes",
+                      owner_id=u["id"], owner_role=u["role"], class_id=u["class_id"],
+                      content=text, status="processing")
+    chunks = ai.chunk_content(text)
+    db.save_chunks(nid, subject or "General", chunks)
+    db.set_note_status(nid, "active", chunk_count=len(chunks))
+    if subject and subject not in db.user_subjects(u["id"]):
+        db.set_user_subjects(u["id"], db.user_subjects(u["id"]) + [subject])
+    bid = db.add_book(u["id"], title, subject or "General", file.filename, size)
+    db.set_book_status(bid, "active", note_id=nid)
+    flash(f"'{title}' uploaded ({size//1024} KB) and indexed into {len(chunks)} concepts.", "success")
+    return redirect(url_for("student_sources"))
+
+
+def _extract_pdf_file(path):
+    try:
+        from pypdf import PdfReader
+        r = PdfReader(path)
+        return "\n".join((p.extract_text() or "") for p in r.pages).strip()
+    except Exception:
+        # fallback: read as text (works for text-like files; PDFs without pypdf won't parse)
+        return open(path, encoding="utf-8", errors="ignore").read()[:50000]
+
+
+@app.route("/student/sources")
+@login_required
+@role_required("school_student", "independent")
+def student_sources():
+    u = current_user()
+    books = db.list_books(u["id"])
+    return render_template("sources.html", user=u, books=books)
+
+
+@app.route("/book/<int:bid>/delete", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def book_delete(bid):
+    b = db.get_book(bid)
+    if b and b["user_id"] == current_user()["id"]:
+        if b["note_id"]:
+            db.delete_note(b["note_id"])
+        db.delete_book(bid)
+        flash("Book removed from your sources.", "success")
+    return redirect(url_for("student_sources"))
+
+
+# ---------------------------------------------------------------------------
+# FRIENDLY INTERACTIVE AI CHAT (behaviour-based gating)
+# ---------------------------------------------------------------------------
+@app.route("/ai/talk", methods=["GET", "POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_talk():
+    if request.method == "GET":
+        u = current_user()
         subject = request.args.get("subject", "")
-        topic = request.args.get("topic", "")
-    video = btai.recommend_video(subject, topic, u["interests"])
-    return render_template("video.html", user=u, video=video, subject=subject,
+        all_subjects = db.subjects_for_student(u)
+        return render_template("talk_form.html", user=u, subject=subject,
+                               all_subjects=all_subjects, ai_enabled=btai.ai_enabled())
+    """Interactive, friendly AI chat with behaviour-based gating."""
+    u = current_user()
+    subject = request.form.get("subject", "")
+    message = request.form.get("message", "").strip()
+    # build notes context
+    context = "\n".join(c["content"] for c in curriculum(subject)) if curriculum(subject) else ""
+    ai_state = db.get_ai_state(u["id"]) or {"casual_count": 0}
+    reply, action = btai.chat_interactive(message, subject, context, u, ai_state)
+    # persist state
+    if action == "exam":
+        db.set_ai_state(u["id"], casual_count=0,
+                        cooldown_until=(datetime.datetime.now() + datetime.timedelta(hours=8)).isoformat())
+    elif action == "cooldown":
+        pass
+    else:
+        new_casual = int(ai_state.get("casual_count", 0) or 0)
+        # reset casual on educational questions
+        new_casual = 0 if btai._is_educational(message) else new_casual
+        db.set_ai_state(u["id"], casual_count=new_casual, last_casual=datetime.datetime.now().isoformat())
+    return render_template("talk.html", user=u, subject=subject, message=message,
+                           reply=reply, action=action, ai_enabled=btai.ai_enabled())
+
+
+# ---------------------------------------------------------------------------
+# SUBJECT SWITCHER + CROSS-SUBJECT EXPLANATION
+# ---------------------------------------------------------------------------
+@app.route("/learn/<subject>/cross/<strong_subject>")
+@login_required
+@role_required("school_student", "independent")
+def learn_cross_subject(subject, strong_subject):
+    """Explain current subject's topic using examples from a strong subject."""
+    u = current_user()
+    course = curriculum(subject)
+    if not course:
+        return redirect(url_for("learn", subject=subject))
+    prog = db.get_progress(u["id"], subject)
+    idx = prog["current_chunk"] if prog else 0
+    idx = min(idx, len(course) - 1)
+    topic = course[idx]["title"]
+    strong_content = "\n".join(c["content"] for c in curriculum(strong_subject)) if curriculum(strong_subject) else ""
+    explanation = btai.cross_subject_explain(topic, subject, strong_subject, strong_content)
+    return render_template("cross_explain.html", user=u, subject=subject,
+                           strong_subject=strong_subject, topic=topic, explanation=explanation,
                            ai_enabled=btai.ai_enabled())
 
 

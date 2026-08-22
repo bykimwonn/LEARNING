@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Break Music · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🎉 Break Playlist</h1>
+    <p class="muted">Auto-picked from your favourites. It plays automatically and the songs are
+       timed to finish before your break ends.</p></div>
+  <a class="btn small ghost" href="{{ url_for('ai_music') }}">← Back to music</a>
+</div>
+
+<div class="card">
+  <form method="post" action="{{ url_for('ai_break') }}" class="row" style="align-items:flex-end">
+    <div style="width:150px"><label>Break length (min)</label>
+      <input type="number" name="minutes" value="{{ break_minutes }}" min="1" max="60"></div>
+    <button class="btn small">🔄 Rebuild playlist for {{ break_minutes }} min</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>🎶 Your Break Playlist</h2>
+  {% if playlist.songs %}
+    <p class="small muted">Estimated total: <b>{{ playlist.total_minutes }}</b> min for a
+       {{ break_minutes }}-minute break. Songs play one after another.</p>
+    <div id="playerBox" style="margin-top:10px;display:none">
+      <iframe id="musicFrame" src="" style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px" allowfullscreen></iframe>
+    </div>
+    <div class="grid g2">
+      {% for s in playlist.songs %}
+      <div class="opt" onclick="togglePlayer('{{ s.url }}')" style="cursor:pointer">
+        <div style="flex:1">
+          <b>{{ s.title }}</b><br>
+          <span class="muted small">{{ s.duration_sec // 60 }}m {{ s.duration_sec % 60 }}s</span>
+        </div>
+        <a class="btn small ghost" href="{{ s.watch_url }}" target="_blank" rel="noopener">▶ YT</a>
+      </div>
+      {% endfor %}
+    </div>
+    <button class="btn" onclick="togglePlayer('{{ playlist.songs[0].url }}')" style="margin-top:14px">▶ Play all</button>
+  {% else %}
+    <p class="muted">Add favourite artists/songs first, then this will auto-build your break mix.</p>
+  {% endif %}
+</div>
+
+<script>
+function togglePlayer(url){
+  const box=document.getElementById('playerBox'), frame=document.getElementById('musicFrame');
+  if(box.style.display==='none'){ frame.src=url+'?autoplay=1'; box.style.display='block'; }
+  else { frame.src=''; box.style.display='none'; }
+}
+</script>
+{% endblock %}

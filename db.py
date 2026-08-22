@@ -130,6 +130,9 @@ _SQLITE_DDL = [
         idle_seconds INTEGER DEFAULT 0, updated_at TEXT DEFAULT (datetime('now')),
         PRIMARY KEY(user_id, subject))""",
     "CREATE TABLE IF NOT EXISTS study_schedule (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, day INTEGER NOT NULL, start_hour INTEGER NOT NULL, end_hour INTEGER NOT NULL, subject TEXT)",
+    "CREATE TABLE IF NOT EXISTS music_favorites (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT DEFAULT 'artist')",
+    "CREATE TABLE IF NOT EXISTS books (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, subject TEXT, filename TEXT, size INTEGER, status TEXT DEFAULT 'processing', note_id INTEGER, created_at TEXT DEFAULT (datetime('now')))",
+    "CREATE TABLE IF NOT EXISTS ai_state (user_id INTEGER PRIMARY KEY, casual_count INTEGER DEFAULT 0, last_casual TEXT, cooldown_until TEXT, good_streak INTEGER DEFAULT 0)",
 ]
 
 _PG_DDL = [
@@ -176,6 +179,9 @@ _PG_DDL = [
         idle_seconds INTEGER DEFAULT 0, updated_at TIMESTAMPTZ DEFAULT now(),
         PRIMARY KEY(user_id, subject))""",
     "CREATE TABLE IF NOT EXISTS study_schedule (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, day INTEGER NOT NULL, start_hour INTEGER NOT NULL, end_hour INTEGER NOT NULL, subject TEXT)",
+    "CREATE TABLE IF NOT EXISTS music_favorites (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, name TEXT NOT NULL, kind TEXT DEFAULT 'artist')",
+    "CREATE TABLE IF NOT EXISTS books (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL, title TEXT NOT NULL, subject TEXT, filename TEXT, size INTEGER, status TEXT DEFAULT 'processing', note_id INTEGER, created_at TIMESTAMPTZ DEFAULT now())",
+    "CREATE TABLE IF NOT EXISTS ai_state (user_id INTEGER PRIMARY KEY, casual_count INTEGER DEFAULT 0, last_casual TEXT, cooldown_until TEXT, good_streak INTEGER DEFAULT 0)",
 ]
 
 
@@ -577,3 +583,77 @@ def weekly_hours(user_id):
 
 def db_schedule_all(user_id):
     return get_schedule(user_id)
+
+
+# ---------------------------------------------------------------------------
+# music favorites
+# ---------------------------------------------------------------------------
+def add_music_favorite(user_id, name, kind="artist"):
+    name = name.strip()
+    if not name:
+        return
+    if _fetch_one("SELECT id FROM music_favorites WHERE user_id=:u AND name=:n",
+                  {"u": user_id, "n": name}):
+        return
+    _execute("INSERT INTO music_favorites (user_id, name, kind) VALUES (:u,:n,:k)",
+             {"u": user_id, "n": name, "k": kind})
+
+
+def list_music_favorites(user_id):
+    return _fetch("SELECT * FROM music_favorites WHERE user_id=:u ORDER BY id", {"u": user_id})
+
+
+def delete_music_favorite(fid):
+    _execute("DELETE FROM music_favorites WHERE id=:i", {"i": fid})
+
+
+# ---------------------------------------------------------------------------
+# books / sources
+# ---------------------------------------------------------------------------
+def add_book(user_id, title, subject, filename, size, status="processing"):
+    return _insert_id(
+        "INSERT INTO books (user_id, title, subject, filename, size, status) "
+        "VALUES (:u,:t,:s,:f,:z,:st) RETURNING id",
+        {"u": user_id, "t": title, "s": subject, "f": filename, "z": size, "st": status})
+
+
+def set_book_status(bid, status, note_id=None):
+    if note_id is not None:
+        _execute("UPDATE books SET status=:s, note_id=:n WHERE id=:i",
+                 {"s": status, "n": note_id, "i": bid})
+    else:
+        _execute("UPDATE books SET status=:s WHERE id=:i", {"s": status, "i": bid})
+
+
+def get_book(bid):
+    return _fetch_one("SELECT * FROM books WHERE id=:i", {"i": bid})
+
+
+def list_books(user_id):
+    return _fetch("SELECT * FROM books WHERE user_id=:u ORDER BY created_at DESC", {"u": user_id})
+
+
+def delete_book(bid):
+    _execute("DELETE FROM books WHERE id=:i", {"i": bid})
+
+
+# ---------------------------------------------------------------------------
+# AI interaction state (casual talk gating)
+# ---------------------------------------------------------------------------
+def get_ai_state(user_id):
+    return _fetch_one("SELECT * FROM ai_state WHERE user_id=:u", {"u": user_id})
+
+
+def set_ai_state(user_id, **kw):
+    if not kw:
+        return
+    row = get_ai_state(user_id)
+    if row:
+        sets = ", ".join(f"{k}=:{k}" for k in kw)
+        params = dict(kw); params["u"] = user_id
+        _execute(f"UPDATE ai_state SET {sets} WHERE user_id=:u", params)
+    else:
+        cols = ["user_id"] + list(kw.keys())
+        binds = {"u": user_id, **kw}
+        _execute(f"INSERT INTO ai_state ({', '.join(cols)}) VALUES "
+                 f"(:u, {', '.join(':'+k for k in kw)})", binds)

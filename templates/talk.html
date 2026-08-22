@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Talk with BT AI · {{ subject }} · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>💬 Chat with BT AI · {{ subject }}</h1>
+    <p class="muted">Your friendly study buddy. Ask about the lesson — or just say hi.</p></div>
+  <a class="btn small ghost" href="{{ url_for('learn', subject=subject) }}">← Back to lesson</a>
+</div>
+
+{% if action == 'exam' %}
+<div class="gate" style="background:linear-gradient(135deg,#b45309,#b91c1c)">
+  <h2>🎯 Time to prove it!</h2>
+  <p>We've had a lovely chat, but your study time matters. <b>Finish and pass the exam</b> for
+     <b>{{ subject }}</b>, then casual chat unlocks again. Otherwise, interactive chat returns in
+     <b>8 hours</b>.</p>
+  <a class="btn good" href="{{ url_for('exam', subject=subject) }}">📝 Take the exam now</a>
+</div>
+{% elif action == 'cooldown' %}
+<div class="gate" style="background:linear-gradient(135deg,#7c3aed,#4f46e5)">
+  <h2>⏳ Chat is on a short break</h2>
+  <p>{{ reply|safe }}</p>
+  <a class="btn" href="{{ url_for('learn', subject=subject) }}">📖 Keep studying</a>
+</div>
+{% endif %}
+
+<div class="card" style="max-width:720px">
+  <div style="max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fbfcff">
+    <div class="md-body">{{ reply|md|safe }}</div>
+  </div>
+  <form method="post" action="{{ url_for('ai_talk') }}" style="margin-top:12px">
+    <input type="hidden" name="subject" value="{{ subject }}">
+    <div class="row">
+      <input name="message" placeholder="Ask about {{ subject }}, or just chat…" required style="flex:1">
+      <button class="btn">Send</button>
+    </div>
+  </form>
+  <p class="small muted" style="margin-top:8px">💡 Ask educational questions anytime. If you chat
+     casually too long, BT AI will nudge you to take the exam.</p>
+</div>
+{% endblock %}

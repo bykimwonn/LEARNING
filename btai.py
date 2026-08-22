@@ -377,6 +377,75 @@ def _fallback_playlist(interests, mode):
 
 
 # ---------------------------------------------------------------------------
+# 4b) Break playlist from user's favorite artists/songs with length estimation
+# ---------------------------------------------------------------------------
+def break_playlist(favorites, break_minutes=10, interests=""):
+    """Build a break playlist from the user's favorite artists/songs.
+    Returns {songs:[{title,artist,url,watch_url,duration_sec}], total_minutes, estimated}."""
+    favs = [f for f in favorites if f.get("name")]
+    songs = []
+    # Shuffle favorites and pick enough to fill the break
+    import random
+    favs = sorted(favs, key=lambda x: random.random())
+    seen = set()
+    for fav in favs:
+        if len(songs) >= 12:
+            break
+        song = _youtube_song(fav["name"], "")  # search for the favorite
+        if song and fav["name"] not in seen:
+            seen.add(fav["name"])
+            # estimate duration via API if possible; else assume ~3.5 min
+            dur = _video_duration(song.get("video_id")) or 210
+            song["duration_sec"] = dur
+            songs.append(song)
+    # If we couldn't get enough from favorites, add interest-based filler
+    if not songs:
+        songs = recommend_playlist(interests, "break")
+        for s in songs:
+            s["duration_sec"] = 210
+    # trim to fit the break window
+    total = 0
+    fit = []
+    for s in songs:
+        d = s.get("duration_sec", 210)
+        if total + d <= break_minutes * 60:
+            fit.append(s)
+            total += d
+        if not fit or len(fit) < 2:
+            if not fit:
+                fit.append(s); total += d
+    return {"songs": fit, "total_minutes": round(total / 60, 1),
+            "estimated": True, "break_minutes": break_minutes}
+
+
+def _video_duration(video_id):
+    """Use YouTube API to get a video's duration in seconds. Returns None on failure."""
+    key = (os.environ.get("YOUTUBE_API_KEY") or "").strip()
+    if not key or not video_id:
+        return None
+    try:
+        import urllib.request
+        url = (f"https://www.googleapis.com/youtube/v3/videos?part=contentDetails"
+               f"&id={video_id}&key={key}")
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        items = data.get("items") or []
+        if not items:
+            return None
+        duration = items[0].get("contentDetails", {}).get("duration", "")
+        # ISO 8601 duration PT#M#S -> seconds
+        import re
+        m = re.match(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", duration)
+        if m:
+            h = int(m.group(1) or 0); mm = int(m.group(2) or 0); s = int(m.group(3) or 0)
+            return h * 3600 + mm * 60 + s
+    except Exception as e:
+        print(f"[btai] video duration failed ({type(e).__name__}): {str(e)[:80]}")
+        return None
+    return None
+
+
+# ---------------------------------------------------------------------------
 # 5) Persistent AI chat tutor (idea 1)
 # ---------------------------------------------------------------------------
 def chat(notes_context, message, interests="", academic_level="", history=None):
@@ -424,6 +493,118 @@ def _fallback_chat(context, message, interests):
     intro = ai_engine.personalized_explain(message[:50], interests)
     return (f"**{intro}**\n\nBased on your notes:\n"
             + "\n".join(f"- {s}" for s in source))
+
+
+# ---------------------------------------------------------------------------
+# 5b) Friendly interactive AI chat with behaviour-based gating
+# ---------------------------------------------------------------------------
+def chat_interactive(message, subject, notes_context, user, ai_state):
+    """A friendly, human-sounding tutor chat that:
+      - Always answers educational questions.
+      - Allows short casual talk, but if the user keeps chatting casually for too
+        long, nudges them back to studying / the exam.
+      - Applies an 8-hour 'cooldown' on casual mode if they ignore the nudge.
+    Returns (reply_text, action) where action is 'none'|'exam'|'study'|'cooldown'."""
+    import datetime as _dt
+    now = _dt.datetime.now()
+    is_edu = _is_educational(message)
+    casual = (ai_state or {}).get("casual_count", 0) or 0
+
+    # Check cooldown (8 hours)
+    cooldown = ai_state.get("cooldown_until") if ai_state else None
+    if cooldown:
+        try:
+            cd = _dt.datetime.fromisoformat(cooldown)
+            if now < cd:
+                hours = max(1, int((cd - now).total_seconds() // 3600))
+                # If it's an educational question, answer it even during cooldown
+                if is_edu:
+                    base = chat(notes_context, message, user.get("interests", ""),
+                                user.get("academic_level", ""))
+                    return (f"{base}\n\n_(Note: casual chat unlocks in ~{hours}h, "
+                            f"but I'll always help with your studies!)_"), "study"
+                return (f"Hey {user.get('name','').split()[0] or 'friend'} 👋 — I'd love to chat, "
+                        f"but we agreed to keep it focused. Casual talk unlocks in about **{hours}h**. "
+                        f"Right now, let's get back to {subject} — I can help you ace it! "
+                        f"Want a quick quiz?"), "cooldown"
+        except Exception:
+            pass
+
+    if is_edu:
+        # educational: always answer, reward the student
+        if casual > 0:
+            db_state = dict(ai_state) if ai_state else {}
+            db_state["casual_count"] = 0
+        reply = chat(notes_context, message, user.get("interests", ""),
+                     user.get("academic_level", ""))
+        return reply, "none"
+
+    # Casual message
+    casual += 1
+    # friendly casual reply
+    friendly = _casual_reply(message, user, subject)
+    # track + decide
+    if casual >= 4:
+        # Too much casual talk -> send them to exam
+        return (f"{friendly}\n\n😊 I really enjoy chatting with you! But I can see you've been "
+                f"hanging out here a while. **Let's make it count** — finish and pass the exam for "
+                f"**{subject}**, then we can chat freely again. Tap **Take the exam** to go now! "
+                f"Otherwise casual chat unlocks again in 8 hours."), "exam"
+    return (f"{friendly}\n\n*(You've been chatting casually a bit — that's fine! Just remember "
+            f"your study time. When you're ready, let's do a quick check on **{subject}**!)*"), "none"
+
+
+def _is_educational(message):
+    """Heuristic: does this message look like a study/exam question?"""
+    edu_words = ["what", "how", "why", "define", "explain", "solve", "calculate", "formula",
+                 "difference", "example", "question", "exam", "test", "concept", "learn",
+                 "understand", "meaning", "subject", "answer", "works", "mean", "equation",
+                 "note", "revision", "help me with", "explain"]
+    m = message.lower()
+    if any(w in m for w in edu_words):
+        return True
+    # question mark with a '?' suggests a real question
+    return "?" in message and len(message) > 12
+
+
+def _casual_reply(message, user, subject):
+    name = user.get("name", "").split()[0] or "friend"
+    m = message.lower()
+    if any(g in m for g in ["hi", "hello", "hey", "how are", "morning", "afternoon", "evening"]):
+        return (f"Hey {name}! 👋 I'm doing great, thanks for asking — and I'm really glad you're "
+                f"here. How are you feeling about **{subject}** today?")
+    if any(g in m for g in ["music", "song", "artist", "listen", "play"]):
+        return (f"Love that you like music, {name}! 🎵 Did you know I can build a focus playlist "
+                f"for you so the tunes help you concentrate instead of distract? Check the 🎵 Music tab!")
+    if any(g in m for g in ["tired", "bored", "sad", "stressed", "hard"]):
+        return (f"I hear you, {name}. 💛 Studying can be tough, but you're doing the right thing "
+                f"by showing up. Take a short breath, and let's tackle **{subject}** together — "
+                f"I'll keep it simple.")
+    if any(g in m for g in ["bye", "later", "see you", "goodnight"]):
+        return (f"See you soon, {name}! 👋 Don't forget — your **{subject}** lesson is waiting. "
+                f"I'll be right here when you're back.")
+    return (f"Hey {name}, that's interesting! 😊 I'm here as your study buddy, so whenever you're "
+            f"ready, let's dive into **{subject}** — or I can set you a quick quiz to see how "
+            f"you're doing.")
+
+
+# ---------------------------------------------------------------------------
+# 5c) Cross-subject example generation
+# ---------------------------------------------------------------------------
+def cross_subject_explain(topic, subject, strong_subject, strong_content):
+    """Explain a topic in the current subject using an analogy/example from another
+    subject the student is good at."""
+    strong = (strong_content or "")[:1500]
+    prompt = f"""You are BT AI. The student understands '{strong_subject}' well. Help them
+understand '{topic}' in '{subject}' by drawing a clear analogy/example FROM '{strong_subject}'.
+Use Markdown: a bold explanation, then a "## Example from {strong_subject}" with a concrete example.
+Keep under 160 words. Example context: {strong}"""
+    out = _call(prompt, temperature=0.6)
+    if out:
+        return out.strip()
+    return (f"Let me explain **{topic}** using what you already know in **{strong_subject}**. "
+            f"Think of it like the ideas in {strong_subject} — the same way you connect concepts "
+            f"there, you can connect these. Take it step by step, and I'll help you link them.")
 
 
 # ---------------------------------------------------------------------------

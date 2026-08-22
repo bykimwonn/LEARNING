@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Chat with BT AI · BT LEARNING{% endblock %}
+{% block content %}
+<div class="card center" style="max-width:560px;margin:50px auto">
+  <div style="font-size:48px">💬</div>
+  <h1>Chat with BT AI</h1>
+  <p class="muted">Your friendly study buddy. Ask about a subject, or just have a chat.</p>
+  <form method="post" action="{{ url_for('ai_talk') }}" class="row">
+    <select name="subject" required>
+      {% for s in (all_subjects) %}<option value="{{ s }}" {{ 'selected' if s==subject }}>{{ s }}</option>{% endfor %}
+    </select>
+    <div style="width:100%;margin-top:10px">
+      <input name="message" placeholder="e.g. Explain photosynthesis simply… or: hey, how are you?" required>
+    </div>
+    <button class="btn" style="width:100%;margin-top:10px">Send</button>
+  </form>
+</div>
+{% endblock %}

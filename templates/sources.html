@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}My Sources · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>📚 My Sources</h1>
+    <p class="muted">Your uploaded books and notes, stored here. Uploads up to 25&nbsp;MB.</p></div>
+  <a class="btn small ghost" href="{{ url_for('student_home') }}">← Back</a>
+</div>
+
+<div class="card">
+  <h2>📤 Upload a Book</h2>
+  <p class="small muted">PDF, Word (.docx) or text files up to 25&nbsp;MB. The AI reads it and adds
+     it to your lessons.</p>
+  <form id="bookForm" method="post" action="{{ url_for('book_upload') }}" enctype="multipart/form-data">
+    <label>Book title</label>
+    <input name="title" placeholder="e.g. Chemistry Textbook Chapter 3">
+    <label>Subject</label>
+    <input name="subject" placeholder="e.g. Chemistry">
+    <label>File (.pdf, .docx, .txt)</label>
+    <input type="file" name="file" accept=".pdf,.docx,.txt,.md" required onchange="updateBar(this)">
+    <div class="progressbar" style="margin:12px 0;display:none" id="pbarWrap">
+      <div id="pbar" style="width:0%"></div>
+    </div>
+    <div class="small muted" id="pstatus"></div>
+    <button class="btn" style="margin-top:10px" onclick="startUpload(event)">Upload book</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>🗂️ Your Library</h2>
+  {% if books %}
+  <table>
+    <tr><th>Book</th><th>Subject</th><th>Size</th><th>Status</th><th></th></tr>
+    {% for b in books %}
+    <tr>
+      <td><b>{{ b.title }}</b></td>
+      <td>{{ b.subject }}</td>
+      <td class="muted">{{ (b.size//1024) if b.size else 0 }} KB</td>
+      <td>{% if b.status=='active' %}<span class="pill g">● Indexed</span>
+          {% else %}<span class="pill o">⏳ Processing</span>{% endif %}</td>
+      <td><form method="post" action="{{ url_for('book_delete', bid=b.id) }}">
+        <button class="btn small ghost">Delete</button></form></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="muted">No books yet. Upload one above.</p>{% endif %}
+</div>
+
+<script>
+function updateBar(input){
+  document.getElementById('pbarWrap').style.display='block';
+  document.getElementById('pstatus').textContent = input.files[0].name + ' selected';
+}
+function startUpload(e){
+  e.preventDefault();
+  const form=document.getElementById('bookForm');
+  const fd=new FormData(form);
+  const xhr=new XMLHttpRequest();
+  xhr.open('POST', form.action, true);
+  xhr.upload.onprogress=function(ev){
+    if(ev.lengthComputable){
+      const pct=Math.round(ev.loaded*100/ev.total);
+      document.getElementById('pbar').style.width=pct+'%';
+      document.getElementById('pstatus').textContent='Uploading… '+pct+'%';
+    }
+  };
+  xhr.onload=function(){ window.location.href='{{ url_for("student_sources") }}'; };
+  xhr.send(fd);
+}
+</script>
+{% endblock %}

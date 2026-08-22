@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Cross-subject help · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🔗 Explain using {{ strong_subject }}</h1>
+    <p class="muted">BT AI explains <b>{{ subject }}</b> — {{ topic }} — using what you already
+       know in <b>{{ strong_subject }}</b>.</p></div>
+  <a class="btn small ghost" href="{{ url_for('learn', subject=subject) }}">← Back to {{ subject }}</a>
+</div>
+<div class="concept" style="border-left-color:var(--brand2)">
+  <div class="step">BT AI · {{ topic }}</div>
+  <div class="md-body">{{ explanation|md|safe }}</div>
+</div>
+{% if not ai_enabled %}
+<div class="hintbox" style="background:#e6f6f7;border-color:#b6e6ea">
+  <b>Note:</b> Add <code>GROQ_API_KEY</code> for a fully AI-written cross-subject explanation.
+</div>
+{% endif %}
+{% endblock %}
