@@ -33,7 +33,7 @@
   {% if all_subjects and all_subjects|length > 1 %}
     <a class="btn small ghost" href="{{ url_for('learn_cross_subject', subject=subject, strong_subject=all_subjects[0] if all_subjects[0]!=subject else all_subjects[1]) }}">🔗 Explain with another subject</a>
   {% endif %}
-  <a class="btn small ghost" href="{{ url_for('ai_talk') }}?subject={{ subject }}">💬 Chat with BT AI</a>
+  <a class="btn small ghost" href="{{ url_for('ai_gemini', subject=subject) }}">💬 Chat with BT AI</a>
 </div>
 
 <div class="learn-layout">

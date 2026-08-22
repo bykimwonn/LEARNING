@@ -1,55 +1,87 @@
 {% extends "base.html" %}
 {% block title %}Dashboard · BT LEARNING{% endblock %}
 {% block content %}
-<div class="spread" style="margin-top:16px">
+
+<div class="page-head">
   <div>
-    <h1>Hello, {{ user.name }} 👋</h1>
-    <p class="muted">
-      {% if user.role == 'school_student' %}Student ID: <b>{{ user.student_id }}</b> ·{% endif %}
-      ELO <b>{{ user.elo }}</b> · <b>{{ user.points }}</b> pts ·
-      Study window {{ "%02d:00"|format(user.study_start_hour) }}–{{ "%02d:00"|format(user.study_end_hour) }}
-    </p>
+    <h1>Welcome back, {{ user.name.split()[0] }}</h1>
+    <div class="sub">
+      {% if user.role == 'school_student' %}Student ID: {{ user.student_id }} ·{% endif %}
+      Let's keep the momentum going today.
+    </div>
   </div>
-  <a class="btn small ghost" href="{{ url_for('student_setup') }}">⚙️ Preferences</a>
-</div>
-
-<div class="card">
-  <h2>🧠 BT AI Tools</h2>
-  <div class="row" style="gap:10px;flex-wrap:wrap">
-    <a class="btn small" href="{{ url_for('ai_timetable') }}">🗓️ AI Timetable</a>
-    <a class="btn small ghost" href="{{ url_for('ai_music') }}">🎵 AI Music</a>
-    <a class="btn small ghost" href="{{ url_for('ai_new_songs') }}">🆕 New songs</a>
-    <a class="btn small ghost" href="{{ url_for('ai_video_search') }}">🎬 Visual</a>
-    <a class="btn small ghost" href="{{ url_for('ai_reminder') }}">⏰ Next session</a>
-    <a class="btn small ghost" href="{{ url_for('ai_progress') }}">📈 My progress</a>
-    <a class="btn small ghost" href="{{ url_for('student_sources') }}">📚 My sources</a>
-    <a class="btn small ghost" href="{{ url_for('ai_talk') }}">💬 Chat with AI</a>
-    <span class="pill b">BT AI {{ 'on' if ai_enabled else 'fallback' }}</span>
-  </div>
-  <div class="small muted" style="margin-top:8px">
-    BT AI builds your timetable, explains notes simply, finds videos, plays focus music, quizzes you,
-    simulates exams, and coaches your progress.
+  <div class="actions">
+    <a class="fancy-btn" href="{{ url_for('student_setup') }}">⚙️ Preferences</a>
+    <a class="fancy-btn primary" href="{{ url_for('ai_gemini', subject=all_subjects[0] if all_subjects else 'General') }}">💬 Chat with BT AI</a>
   </div>
 </div>
 
-<div class="card">
-  <h2>📖 Your Subjects</h2>
+<!-- KPI stats -->
+<div class="kpis">
+  <div class="kpi">
+    <div class="k-ico">🏅</div>
+    <div class="k-label">Performance Score</div>
+    <div class="k-value">{{ user.elo }}</div>
+    <div class="k-note">ELO rating</div>
+  </div>
+  <div class="kpi">
+    <div class="k-ico">🔥</div>
+    <div class="k-label">Study Streak</div>
+    <div class="k-value">{{ user.streak }}<span style="font-size:16px"> days</span></div>
+    <div class="k-note">Keep it alive!</div>
+  </div>
+  <div class="kpi">
+    <div class="k-ico">⭐</div>
+    <div class="k-label">Points</div>
+    <div class="k-value">{{ user.points }}</div>
+    <div class="k-note">Earned from lessons &amp; exams</div>
+  </div>
+  <div class="kpi">
+    <div class="k-ico">🧠</div>
+    <div class="k-label">AI Assistant</div>
+    <div class="k-value" style="font-size:22px;margin-top:14px">
+      <span class="pill {{ 'g' if ai_enabled else 'o' }}">{{ 'Connected' if ai_enabled else 'Fallback' }}</span>
+    </div>
+    <div class="k-note">{{ 'Gemini' if ai_enabled else 'Rule-based engine' }}</div>
+  </div>
+</div>
+
+<!-- BT AI tools -->
+<div class="section">
+  <div class="section-title"><h2>BT AI Tools</h2><div class="line"></div><span class="count">8</span></div>
+  <div class="tool-grid">
+    <a class="tool" href="{{ url_for('ai_timetable') }}"><span class="t-ico">🗓️</span><span class="t-name">AI Timetable</span><span class="t-desc">Build &amp; print your study plan</span></a>
+    <a class="tool" href="{{ url_for('ai_music') }}"><span class="t-ico">🎵</span><span class="t-name">Music</span><span class="t-desc">Genres, favourites &amp; focus</span></a>
+    <a class="tool" href="{{ url_for('ai_video_search') }}"><span class="t-ico">🎬</span><span class="t-name">Visual</span><span class="t-desc">Search &amp; watch lessons</span></a>
+    <a class="tool" href="{{ url_for('ai_progress') }}"><span class="t-ico">📈</span><span class="t-name">Progress</span><span class="t-desc">Track accuracy &amp; growth</span></a>
+    <a class="tool" href="{{ url_for('ai_reminder') }}"><span class="t-ico">⏰</span><span class="t-name">Next Session</span><span class="t-desc">See your schedule</span></a>
+    <a class="tool" href="{{ url_for('student_sources') }}"><span class="t-ico">📚</span><span class="t-name">My Sources</span><span class="t-desc">Uploaded books &amp; notes</span></a>
+    <a class="tool" href="{{ url_for('ai_new_songs') }}"><span class="t-ico">🆕</span><span class="t-name">New Music</span><span class="t-desc">Latest hits near you</span></a>
+    <a class="tool" href="{{ url_for('ai_coach') }}"><span class="t-ico">🧑‍🏫</span><span class="t-name">Coach</span><span class="t-desc">AI weekly review</span></a>
+  </div>
+</div>
+
+<!-- Subjects -->
+<div class="section">
+  <div class="section-title"><h2>My Subjects</h2><div class="line"></div><span class="count">{{ subjects|length }}</span></div>
   <div class="grid g2">
     {% for s in subjects %}
-    <div class="card" style="box-shadow:none;background:#fbfcff">
-      <div class="spread">
-        <b style="font-size:18px">{{ s.subject }}</b>
+    <div class="subject-card">
+      <div class="sc-top">
+        <div>
+          <div class="sc-name">{{ s.subject }}</div>
+          <div class="sc-progress">{{ s.done }} of {{ s.total }} concepts mastered</div>
+        </div>
         <span class="pill {{ 'g' if s.total and s.done == s.total else 'b' }}">
-          {{ s.done }}/{{ s.total }} concepts</span>
+          {{ (s.done * 100 // s.total) if s.total else 0 }}%
+        </span>
       </div>
-      <div class="progressbar {{ 'good' if s.total and s.done == s.total else '' }}" style="margin:12px 0">
-        <div style="width:{{ (s.done * 100 / s.total) if s.total else 0 }}%"></div>
-      </div>
-      <div class="row">
-        <a class="btn small" href="{{ url_for('learn', subject=s.subject) }}">Learn</a>
-        <a class="btn small ghost" href="{{ url_for('practice', subject=s.subject) }}">Past papers</a>
-        <a class="btn small ghost" href="{{ url_for('ai_quiz', subject=s.subject) }}">🧠 AI Quiz</a>
-        <a class="btn small ghost" href="{{ url_for('exam', subject=s.subject) }}">📝 Exam</a>
+      <div class="sc-bar"><div style="width:{{ (s.done * 100 / s.total) if s.total else 0 }}%"></div></div>
+      <div class="sc-actions">
+        <a class="fancy-btn primary" href="{{ url_for('learn', subject=s.subject) }}">Learn</a>
+        <a class="fancy-btn" href="{{ url_for('practice', subject=s.subject) }}">Past papers</a>
+        <a class="fancy-btn" href="{{ url_for('ai_quiz', subject=s.subject) }}">AI Quiz</a>
+        <a class="fancy-btn gold" href="{{ url_for('exam', subject=s.subject) }}">Exam</a>
       </div>
     </div>
     {% endfor %}
@@ -57,20 +89,20 @@
 </div>
 
 <div class="grid g2">
-  <div class="card">
-    <h2>⚠️ Your Weaknesses</h2>
+  <div class="mini-card">
+    <h3>⚠️ Areas to Review</h3>
     {% if weaknesses %}
-    <table>
-      <tr><th>Subject</th><th>Concept</th><th>Fails</th></tr>
+    <table class="prof-table">
+      <tr><th>Subject</th><th>Concept</th><th>Attempts</th></tr>
       {% for w in weaknesses %}
       <tr><td>{{ w.subject }}</td><td>{{ w.concept }}</td>
           <td><span class="pill r">{{ w.fail_count }}×</span></td></tr>
       {% endfor %}
     </table>
-    {% else %}<p class="muted">No weak areas detected. Keep up the great work! 🎉</p>{% endif %}
+    {% else %}<p class="muted">No weak areas detected. Excellent work! 🎉</p>{% endif %}
   </div>
-  <div class="card">
-    <h2>📤 Upload your own notes</h2>
+  <div class="mini-card">
+    <h3>📤 Add Study Material</h3>
     <form method="post" action="{{ url_for('student_upload') }}" enctype="multipart/form-data">
       <label>Title</label>
       <input name="title" placeholder="e.g. Poetry notes" required>
@@ -80,7 +112,7 @@
       <input type="file" name="file" accept=".txt,.md,.pdf">
       <label>…or paste content</label>
       <textarea name="content" placeholder="Paste your notes here…"></textarea>
-      <div style="margin-top:12px"><button class="btn small">Upload to AI index</button></div>
+      <div style="margin-top:12px"><button class="fancy-btn primary">Upload to AI index</button></div>
     </form>
   </div>
 </div>

@@ -1,78 +1,86 @@
 {% extends "teacher/_base.html" %}
 {% block title %}Command Center · BT LEARNING{% endblock %}
 {% block content %}
-<div class="spread" style="margin-top:16px">
+<div class="page-head">
   <div>
     <h1>Command Center</h1>
-    <p class="muted">{{ sel.class_name }} · {{ sel.subject }} — a live health overview of this class.</p>
+    <div class="sub">{{ sel.class_name }} · {{ sel.subject }} — live health overview</div>
   </div>
-  <a class="btn small ghost" href="{{ url_for('teacher_curriculum') }}">Manage materials →</a>
+  <div class="actions">
+    <a class="fancy-btn" href="{{ url_for('teacher_curriculum') }}">Manage materials</a>
+    <a class="fancy-btn primary" href="{{ url_for('teacher_ai_insights') }}">✨ AI Insights</a>
+  </div>
 </div>
 
-<div class="grid g3" style="margin-top:6px">
-  <div class="card center" style="margin:0">
-    <h2 style="margin:0">Class Health Score</h2>
-    {% if health is not none %}
-      <div style="font-size:46px;font-weight:800;color:{{ '#16a34a' if health>=70 else ('#d97706' if health>=45 else '#dc2626') }}">{{ health }}%</div>
-      <p class="small muted">retention based on AI test results</p>
-      <div class="progressbar {{ 'good' if health>=70 else '' }}"><div style="width:{{ health }}%"></div></div>
-    {% else %}
-      <div style="font-size:30px;color:var(--muted)">No data yet</div>
-      <p class="small muted">Upload notes so students can start.</p>
-    {% endif %}
+<div class="kpis">
+  <div class="kpi">
+    <div class="k-ico">💚</div>
+    <div class="k-label">Class Health</div>
+    <div class="k-value" style="color:{{ '#17b26a' if (health or 0)>=70 else ('#d97706' if (health or 0)>=45 else '#c01e2e') }}">{{ health if health is not none else '—' }}<span style="font-size:16px">%</span></div>
+    <div class="k-note">Retention from AI results</div>
   </div>
+  <div class="kpi">
+    <div class="k-ico">🚨</div>
+    <div class="k-label">Action Required</div>
+    <div class="k-value" style="color:{{ '#c01e2e' if action_items else '#17b26a' }}">{{ action_items|length }}</div>
+    <div class="k-note">Critical alerts</div>
+  </div>
+  <div class="kpi">
+    <div class="k-ico">🎓</div>
+    <div class="k-label">Students</div>
+    <div class="k-value">{{ students|length }}</div>
+    <div class="k-note">In this class</div>
+  </div>
+  <div class="kpi">
+    <div class="k-ico">📄</div>
+    <div class="k-label">Materials</div>
+    <div class="k-value">{{ notes_count }}</div>
+    <div class="k-note">Active notes</div>
+  </div>
+</div>
 
-  <div class="card" style="margin:0">
-    <div class="spread"><h2 style="margin:0">Action Required</h2>
-      <span class="pill r">{{ action_items|length }} critical</span></div>
+<div class="grid g2" style="margin-bottom:24px">
+  <div class="mini-card">
+    <div class="section-title"><h2>Action Required</h2><div class="line"></div><span class="count">{{ action_items|length }}</span></div>
     {% if action_items %}
       {% for it in action_items %}
-      <div class="small" style="padding:10px 0;border-bottom:1px solid var(--line)">
-        <b>{{ it.student_name }}</b> failed <b>{{ it.concept }}</b>
+      <div class="kv" style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <b>{{ it.student_name }}</b> — <i>{{ it.concept }}</i>
         <span class="pill r">{{ it.fail_count }}×</span>
-        <div class="muted small">{{ it.subject }}</div>
+        <div class="small muted">{{ it.subject }}</div>
       </div>
       {% endfor %}
-      <a class="btn small" href="{{ url_for('teacher_weaknesses') }}" style="margin-top:10px">Open reports →</a>
-    {% else %}
-      <p class="muted">No critical issues flagged. 🎉</p>
-    {% endif %}
+      <a class="fancy-btn primary" href="{{ url_for('teacher_weaknesses') }}" style="margin-top:12px">Open reports</a>
+    {% else %}<p class="muted">No critical issues flagged. 🎉</p>{% endif %}
   </div>
 
-  <div class="card" style="margin:0">
-    <div class="spread"><h2 style="margin:0">Leaderboard</h2>
-      <span class="pill b">Board 1</span></div>
-    {% for lb in leaderboard[:5] %}
-      <div class="rank-card" style="padding:10px 12px;margin:6px 0">
-        <div class="rank-num" style="font-size:18px">{{ lb.pos }}</div>
-        <div style="flex:1"><b>{{ lb.student.name }}</b>
-          {% if lb.board1 %}<span class="pill g">Board 1</span>{% endif %}
-          <div class="small muted">🔥 {{ lb.student.streak }} day · ELO {{ lb.student.elo }}</div>
-        </div>
-      </div>
+  <div class="mini-card">
+    <div class="section-title"><h2>Leaderboard</h2><div class="line"></div><span class="count">Board 1</span></div>
+    {% for lb in leaderboard[:6] %}
+    <div class="kv" style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line)">
+      <span style="width:24px;height:24px;border-radius:50%;background:{{ 'var(--gold)' if lb.pos==1 else 'var(--chip)' }};color:{{ '#fff' if lb.pos==1 else 'var(--brand)' }};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">{{ lb.pos }}</span>
+      <span style="flex:1"><b>{{ lb.student.name }}</b></span>
+      <span class="small muted">🔥 {{ lb.student.streak }}d</span>
+      <span class="pill b">ELO {{ lb.student.elo }}</span>
+    </div>
     {% else %}<p class="muted">No students yet.</p>{% endfor %}
   </div>
 </div>
 
-<div class="grid g2" style="margin-top:16px">
-  <div class="card">
-    <div class="spread">
-      <h2>⚡ At a glance</h2>
-    </div>
-    <div class="kv"><b>Students in class</b>{{ students|length }}</div>
-    <div class="kv"><b>Active notes</b>{{ notes_count }}</div>
+<div class="grid g2">
+  <div class="mini-card">
+    <h3>⚡ At a glance</h3>
     <div class="kv"><b>Open weakness alerts</b>{{ weaknesses|length }}</div>
     <div class="kv"><b>Teaching now</b>{{ sel.subject }}</div>
   </div>
-  <div class="card">
-    <h2>📣 Latest alerts</h2>
+  <div class="mini-card">
+    <h3>📣 Latest alerts</h3>
     {% for it in action_items[:4] %}
       <div class="small" style="padding:8px 0;border-bottom:1px solid var(--line)">
         🔴 <b>{{ it.student_name }}</b> — <i>{{ it.concept }}</i>
-        <span class="muted small">({{ it.fail_count }} failures)</span>
+        <span class="muted small">({{ it.fail_count }}×)</span>
       </div>
     {% else %}<p class="muted">No alerts right now.</p>{% endfor %}
-    <a class="small" href="{{ url_for('teacher_weaknesses') }}">View all AI reports →</a>
   </div>
 </div>
 {% endblock %}

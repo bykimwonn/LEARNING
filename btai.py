@@ -569,17 +569,16 @@ def chat(notes_context, message, interests="", academic_level="", history=None):
             lines.append(f"{who}: {h.get('text','')}")
         hist_txt = "\n".join(lines) + "\n"
 
-    prompt = f"""You are BT AI, a friendly tutor. Answer the student's question using ONLY the
-notes provided. If the notes don't cover it, say so and explain in simple English.
+    notes_hint = (f"Use these notes as your main source if they cover the topic:\n{context}\n"
+                  if context else "There are no notes uploaded for this yet — answer from your own knowledge in a helpful, simple way.")
+    prompt = f"""You are BT AI, a friendly, knowledgeable tutor. Answer the student's question
+clearly and helpfully. {notes_hint}
 Use Markdown so the answer looks clean:
 - Start with a short direct answer in bold.
 - Use bullet points for the main explanation.
 - Use a short "## Example" with an analogy if helpful.
-Keep it clear and brief (under 200 words). {interest_hint}
+Keep it clear and brief (under 220 words). {interest_hint}
 Academic level: {academic_level or 'school'}
-
-NOTES CONTEXT:
-{context}
 
 PREVIOUS CHAT:
 {hist_txt}

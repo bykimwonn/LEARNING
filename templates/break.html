@@ -1,10 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Break Music · BT LEARNING{% endblock %}
 {% block content %}
+<!-- Break countdown timer (corner) -->
+<div id="breakTimer" style="position:fixed;bottom:16px;left:16px;z-index:60;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:10px 16px;display:none">
+  <div class="small muted">⏳ Break ends in</div>
+  <div id="timerNum" style="font-size:22px;font-weight:800;color:var(--brand)">--:--</div>
+</div>
+
 <div class="spread" style="margin-top:16px">
   <div><h1>🎉 Break Playlist</h1>
-    <p class="muted">Auto-picked from your favourites. It plays automatically and the songs are
-       timed to finish before your break ends.</p></div>
+    <p class="muted">Playing your favourites automatically. Songs play one after another until
+       your break ends, then we'll send you back to study.</p></div>
   <a class="btn small ghost" href="{{ url_for('ai_music') }}">← Back to music</a>
 </div>
 
@@ -17,35 +23,57 @@
 </div>
 
 <div class="card">
-  <h2>🎶 Your Break Playlist</h2>
+  <h2>🎶 Playing now</h2>
   {% if playlist.songs %}
-    <p class="small muted">Estimated total: <b>{{ playlist.total_minutes }}</b> min for a
-       {{ break_minutes }}-minute break. Songs play one after another.</p>
-    <div id="playerBox" style="margin-top:10px;display:none">
+    <p class="small muted">Estimated total: <b>{{ playlist.total_minutes }}</b> min · 
+      <b>{{ playlist.songs|length }}</b> song(s)</p>
+    <div id="playerBox">
       <iframe id="musicFrame" src="" style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px" allowfullscreen></iframe>
     </div>
-    <div class="grid g2">
-      {% for s in playlist.songs %}
-      <div class="opt" onclick="togglePlayer('{{ s.url }}')" style="cursor:pointer">
-        <div style="flex:1">
-          <b>{{ s.title }}</b><br>
-          <span class="muted small">{{ s.duration_sec // 60 }}m {{ s.duration_sec % 60 }}s</span>
-        </div>
-        <a class="btn small ghost" href="{{ s.watch_url }}" target="_blank" rel="noopener">▶ YT</a>
-      </div>
-      {% endfor %}
-    </div>
-    <button class="btn" onclick="togglePlayer('{{ playlist.songs[0].url }}')" style="margin-top:14px">▶ Play all</button>
+    <div class="small muted" id="nowPlaying" style="margin-top:8px"></div>
+    <button class="btn small ghost" onclick="skipSong()">⏭ Skip</button>
   {% else %}
-    <p class="muted">Add favourite artists/songs first, then this will auto-build your break mix.</p>
+    <p class="muted">Add favourite artists/songs (or search songs) first, then this auto-builds your break mix.</p>
   {% endif %}
 </div>
 
 <script>
-function togglePlayer(url){
-  const box=document.getElementById('playerBox'), frame=document.getElementById('musicFrame');
-  if(box.style.display==='none'){ frame.src=url+'?autoplay=1'; box.style.display='block'; }
-  else { frame.src=''; box.style.display='none'; }
+const SONGS = {{ playlist.songs|tojson }};
+const BREAK_MIN = {{ break_minutes }};
+let idx = 0;
+
+function playAt(i){
+  if(!SONGS.length) return;
+  idx = (i + SONGS.length) % SONGS.length;
+  const s = SONGS[idx];
+  document.getElementById('musicFrame').src = s.url + '?autoplay=1';
+  const np = document.getElementById('nowPlaying');
+  if(np) np.textContent = '▶ ' + s.title + (s.duration_sec ? ' · ' + Math.round(s.duration_sec/60) + 'm' : '');
+  // auto-play next when this song ends (estimate by duration)
+  const dur = (s.duration_sec || 210) * 1000;
+  clearTimeout(window._nextT);
+  window._nextT = setTimeout(function(){ playAt(idx+1); }, dur);
+}
+function skipSong(){ playAt(idx+1); }
+
+// start
+if(SONGS.length){
+  playAt(0);
+  // start break countdown
+  document.getElementById('breakTimer').style.display='block';
+  let remaining = BREAK_MIN * 60;
+  const t = document.getElementById('timerNum');
+  const iv = setInterval(function(){
+    remaining--;
+    if(remaining <= 0){
+      clearInterval(iv);
+      document.getElementById('breakTimer').style.display='none';
+      window.location.href = '{{ url_for("student_home") }}'; // redirect back to dashboard
+    } else {
+      const m = Math.floor(remaining/60), s = remaining%60;
+      t.textContent = m + ':' + (s<10?'0':'') + s;
+    }
+  }, 1000);
 }
 </script>
 {% endblock %}

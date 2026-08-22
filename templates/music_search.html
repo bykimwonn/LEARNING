@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Search Music · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🔍 Search Music</h1>
+    <p class="muted">Search any song, tap one to play it, and save it to your favourites so BT AI
+       recommends it in your break playlists.</p></div>
+  <a class="btn small ghost" href="{{ url_for('ai_music') }}">← Back to music</a>
+</div>
+
+<div class="card">
+  <form method="get" action="{{ url_for('ai_music_search') }}" class="row">
+    <input name="q" value="{{ query }}" placeholder="Search a song or artist… e.g. Winky D, Bhekiwe, Buja" style="flex:1" required>
+    <button class="btn">🔍 Search</button>
+  </form>
+</div>
+
+{% if results %}
+<div class="card">
+  <h2>🎶 Results</h2>
+  <div class="grid g2">
+    {% for v in results %}
+    <div class="card" style="padding:16px">
+      <b>{{ v.title }}</b>
+      {% if v.channel %}<div class="small muted">{{ v.channel }}</div>{% endif %}
+      <div class="row" style="gap:8px;margin-top:10px">
+        <button class="btn small" onclick="togglePlayer('{{ v.url }}')">▶ Play</button>
+        <form method="post" action="{{ url_for('ai_music_add_from_search') }}">
+          <input type="hidden" name="title" value="{{ v.title }}">
+          <button class="btn small ghost">⭐ Save to favourites</button>
+        </form>
+        <a class="btn small ghost" href="{{ v.watch_url }}" target="_blank" rel="noopener">YT</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div id="playerBox" style="margin-top:16px;display:none">
+    <iframe id="musicFrame" src="" style="width:100%;aspect-ratio:16/9;border:0;border-radius:12px" allowfullscreen></iframe>
+  </div>
+</div>
+{% elif query %}
+<div class="card"><p class="muted">No results found for "{{ query }}".</p></div>
+{% endif %}
+
+<script>
+function togglePlayer(url){
+  const box=document.getElementById('playerBox'), frame=document.getElementById('musicFrame');
+  if(box.style.display==='none'){ frame.src=url+'?autoplay=1'; box.style.display='block'; }
+  else { frame.src=''; box.style.display='none'; }
+}
+</script>
+{% endblock %}

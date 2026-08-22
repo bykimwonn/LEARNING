@@ -23,9 +23,12 @@
 
   <div class="card">
     <h2>⭐ Your favourites</h2>
-    <p class="small muted">Add artists/songs. BT AI uses them for your break playlists.</p>
+    <p class="small muted">Search any song to play it and save it here. BT AI uses these for your break playlists.</p>
+    <div style="margin-bottom:10px">
+      <a class="btn small" href="{{ url_for('ai_music_search') }}">🔍 Search songs</a>
+    </div>
     <form method="post" action="{{ url_for('ai_music_favorite') }}" class="row">
-      <input name="name" placeholder="e.g. Winky D, Burna Boy, Tinashe…" required style="flex:1">
+      <input name="name" placeholder="Or type an artist/song to add" required style="flex:1">
       <button class="btn small">Add</button>
     </form>
     {% if favorites %}
@@ -42,6 +45,7 @@
     <div style="margin-top:14px">
       <a class="btn small ghost" href="{{ url_for('ai_break') }}">🎉 Break playlist</a>
       <a class="btn small ghost" href="{{ url_for('ai_playlist', mode='focus') }}">🧘 Focus playlist</a>
+      <a class="btn small gold" href="{{ url_for('ai_break', random=1) }}">🎲 Random play</a>
     </div>
   </div>
 </div>

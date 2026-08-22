@@ -799,9 +799,10 @@ def student_home():
     weaknesses = db.list_weaknesses(user_id=u["id"])
     my_notes = [n for n in db.list_notes() if n["owner_id"] == u["id"]]
     books = db.list_books(u["id"])
+    all_subjects = subjects
     return render_template("student_home.html", user=u, subjects=subjects_with_progress,
                            weaknesses=weaknesses, my_notes=my_notes, books=books,
-                           ai_enabled=btai.ai_enabled())
+                           all_subjects=all_subjects, ai_enabled=btai.ai_enabled())
 
 
 @app.route("/student/upload", methods=["POST"])
@@ -1225,6 +1226,32 @@ def ai_video():
 # ---------------------------------------------------------------------------
 # MUSIC FAVORITES + BREAK PLAYLIST (autoplay + length-aware)
 # ---------------------------------------------------------------------------
+@app.route("/ai/music-search")
+@login_required
+@role_required("school_student", "independent")
+def ai_music_search():
+    """Search songs and add the picked one to favourites."""
+    u = current_user()
+    query = request.args.get("q", "").strip()
+    results = []
+    if query:
+        results = btai.search_videos(query + " music", max_results=10)
+    return render_template("music_search.html", user=u, query=query, results=results,
+                           ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/music/add-from-search", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_music_add_from_search():
+    u = current_user()
+    title = request.form.get("title", "").strip()
+    if title:
+        db.add_music_favorite(u["id"], title, "song")
+        flash(f"'{title}' added to favourites.", "success")
+    return redirect(request.referrer or url_for("ai_music"))
+
+
 @app.route("/ai/music")
 @login_required
 @role_required("school_student", "independent")
@@ -1336,48 +1363,51 @@ def ai_playlist():
 @role_required("school_student", "independent")
 def book_upload():
     u = current_user()
-    title = request.form.get("title", "").strip()
-    subject = request.form.get("subject", "").strip()
-    file = request.files.get("file")
-    if not file or not file.filename:
-        flash("Please select a book file to upload.", "error")
-        return redirect(url_for("student_sources"))
-    size = file.seek(0, 2); file.seek(0)
-    if not title:
-        title = file.filename.rsplit(".", 1)[0]
-    # save the file
-    safe_name = f"u{u['id']}_{int(datetime.datetime.now().timestamp())}_{file.filename.replace(' ','_')}"
-    path = os.path.join(app.config["UPLOAD_FOLDER"], safe_name)
-    file.save(path)
-    # extract text
-    ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
-    text = ""
-    if ext == "pdf":
-        text = _extract_pdf_file(path)
-    elif ext in ("txt", "md"):
-        text = open(path, encoding="utf-8", errors="ignore").read()
-    else:
-        try:
+    try:
+        title = request.form.get("title", "").strip()
+        subject = request.form.get("subject", "").strip()
+        file = request.files.get("file")
+        if not file or not file.filename:
+            flash("Please select a book file to upload.", "error")
+            return redirect(url_for("student_sources"))
+        size = file.seek(0, 2); file.seek(0)
+        if not title:
+            title = file.filename.rsplit(".", 1)[0]
+        # save the file
+        safe_name = f"u{u['id']}_{int(datetime.datetime.now().timestamp())}_{file.filename.replace(' ','_')}"
+        path = os.path.join(app.config["UPLOAD_FOLDER"], safe_name)
+        file.save(path)
+        # extract text
+        ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
+        text = ""
+        if ext == "pdf":
             text = _extract_pdf_file(path)
-        except Exception:
+        elif ext == "docx":
+            text = _extract_docx(path)
+        elif ext in ("txt", "md"):
             text = open(path, encoding="utf-8", errors="ignore").read()
-    text = (text or "").strip()
-    if not text:
-        flash("Could not read any text from that file. Upload a PDF or text file.", "error")
-        return redirect(url_for("student_sources"))
-    subj = subject or "General"
-    # create note + chunks
-    nid = db.add_note(title=title, subject=subj, category="notes",
-                      owner_id=u["id"], owner_role=u["role"], class_id=u["class_id"],
-                      content=text, status="processing")
-    chunks = ai.chunk_content(text)
-    db.save_chunks(nid, subj, chunks)
-    db.set_note_status(nid, "active", chunk_count=len(chunks))
-    if subj not in db.user_subjects(u["id"]):
-        db.set_user_subjects(u["id"], db.user_subjects(u["id"]) + [subj])
-    bid = db.add_book(u["id"], title, subj, file.filename, size)
-    db.set_book_status(bid, "active", note_id=nid)
-    flash(f"'{title}' uploaded ({size//1024} KB) and indexed into {len(chunks)} concepts.", "success")
+        else:
+            text = ""
+        text = (text or "").strip()
+        if not text:
+            flash("Could not read text from that file. Try a PDF or text file.", "error")
+            return redirect(url_for("student_sources"))
+        subj = subject or "General"
+        nid = db.add_note(title=title, subject=subj, category="notes",
+                          owner_id=u["id"], owner_role=u["role"], class_id=u["class_id"],
+                          content=text, status="processing")
+        chunks = ai.chunk_content(text)
+        db.save_chunks(nid, subj, chunks)
+        db.set_note_status(nid, "active", chunk_count=len(chunks))
+        if subj not in db.user_subjects(u["id"]):
+            db.set_user_subjects(u["id"], db.user_subjects(u["id"]) + [subj])
+        bid = db.add_book(u["id"], title, subj, file.filename, size)
+        db.set_book_status(bid, "active", note_id=nid)
+        flash(f"'{title}' uploaded ({size//1024} KB) and indexed into {len(chunks)} concepts.", "success")
+    except Exception as e:
+        import traceback
+        print("book_upload error:", traceback.format_exc())
+        flash("Sorry, that file could not be processed. Try a smaller PDF or text file.", "error")
     return redirect(url_for("student_sources"))
 
 
@@ -1389,6 +1419,16 @@ def _extract_pdf_file(path):
     except Exception:
         # fallback: read as text (works for text-like files; PDFs without pypdf won't parse)
         return open(path, encoding="utf-8", errors="ignore").read()[:50000]
+
+
+def _extract_docx(path):
+    """Extract text from a Word .docx file."""
+    try:
+        from docx import Document
+        doc = Document(path)
+        return "\n".join(p.text for p in doc.paragraphs if p.text).strip()
+    except Exception:
+        return ""
 
 
 @app.route("/student/sources")
@@ -1411,6 +1451,47 @@ def book_delete(bid):
         db.delete_book(bid)
         flash("Book removed from your sources.", "success")
     return redirect(url_for("student_sources"))
+
+
+# ---------------------------------------------------------------------------
+# GEMINI-STYLE CHAT INTERFACE
+# ---------------------------------------------------------------------------
+@app.route("/ai/gemini/<subject>", methods=["GET"])
+@login_required
+@role_required("school_student", "independent")
+def ai_gemini(subject):
+    """Full-page Gemini-style chat for a subject."""
+    u = current_user()
+    history = session.get(f"gemini_chat_{subject}", [])
+    return render_template("gemini_chat.html", user=u, subject=subject,
+                           history=history, ai_provider=btai.get_provider())
+
+
+@app.route("/ai/gemini/<subject>/send", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_gemini_send(subject):
+    """AJAX endpoint for the Gemini-style chat."""
+    u = current_user()
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "empty"}), 400
+    context = "\n".join(c["content"] for c in curriculum(subject)) if curriculum(subject) else ""
+    history = session.get(f"gemini_chat_{subject}", [])
+    reply = btai.chat(context, message, u["interests"], u["academic_level"], history)
+    history.append({"role": "user", "text": message})
+    history.append({"role": "ai", "text": reply})
+    session[f"gemini_chat_{subject}"] = history[-20:]
+    return jsonify({"reply": reply, "history": history})
+
+
+@app.route("/ai/gemini/<subject>/clear", methods=["POST"])
+@login_required
+@role_required("school_student", "independent")
+def ai_gemini_clear(subject):
+    session.pop(f"gemini_chat_{subject}", None)
+    return redirect(url_for("ai_gemini", subject=subject))
 
 
 # ---------------------------------------------------------------------------
@@ -1688,6 +1769,13 @@ def healthz():
         return jsonify({"status": "ok"})
     except Exception:
         return jsonify({"status": "db-unreachable"}), 500
+
+
+@app.errorhandler(413)
+def too_large(e):
+    return render_template("error.html", code=413,
+                           title="File too large",
+                           message="The file is larger than 25 MB. Please upload a smaller file."), 413
 
 
 @app.errorhandler(404)

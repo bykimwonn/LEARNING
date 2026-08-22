@@ -24,6 +24,7 @@ pip install \
   "pypdf>=4.0" \
   "groq>=1.0" \
   "markdown>=3.0" \
-  "google-genai>=1.0"
+  "google-genai>=1.0" \
+  "python-docx>=1.1"
 
 echo "► Build complete."
