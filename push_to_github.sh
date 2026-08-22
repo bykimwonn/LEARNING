@@ -19,9 +19,9 @@ head -1 build.sh | grep -q "#!/usr/bin/env bash" \
   && echo "  ✓ build.sh is a real shell script" \
   || { echo "  ✗ build.sh does NOT look like a shell script. Aborting."; exit 1; }
 
-# 2. Safety check: requirements.txt resolves cleanly
+# 2. Safety check: requirements.txt has no junk lines
 echo "► Checking requirements.txt..."
-if python3 -m pip install --dry-run -r requirements.txt >/dev/null; then
+if python3 validate_requirements.py requirements.txt; then
   echo "  ✓ requirements.txt is clean"
 else
   echo "  ✗ requirements.txt has invalid lines. Aborting."

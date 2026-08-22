@@ -18,7 +18,7 @@
 </div>
 <div class="concept" style="border-left-color:var(--brand2)">
   <div class="step">BT AI Explanation</div>
-  <div style="white-space:pre-wrap">{{ explanation }}</div>
+  <div class="md-body">{{ explanation|md|safe }}</div>
 </div>
 {% if not ai_enabled %}
 <div class="hintbox" style="background:#e6f6f7;border-color:#b6e6ea">

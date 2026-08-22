@@ -18,7 +18,7 @@
       No checks yet
     {% endif %}
   </h2>
-  <div style="white-space:pre-wrap;background:#fbfcff;border:1px solid var(--line);border-radius:12px;padding:14px">{{ r.coach }}</div>
+  <div class="md-body" style="background:#fbfcff;border:1px solid var(--line);border-radius:12px;padding:14px">{{ r.coach|md|safe }}</div>
   {% if r.weak %}
     <div class="row" style="margin-top:10px">
       <span class="pill r">Review: {% for w in r.weak %}{{ w }}{{ ', ' if not loop.last }}{% endfor %}</span>

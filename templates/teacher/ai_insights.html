@@ -11,8 +11,7 @@
 <div class="concept" style="border-left-color:var(--brand2)">
   <div class="step">BT AI Class Summary · {{ ins.subject }}</div>
   <h2 style="margin-top:4px">Class health: {{ ins.health if ins.health is not none else 'n/a' }}%</h2>
-  <div style="white-space:pre-wrap;background:#fbfcff;border:1px solid var(--line);border-radius:12px;padding:14px">
-    {{ ins.summary }}</div>
+  <div class="md-body" style="background:#fbfcff;border:1px solid var(--line);border-radius:12px;padding:14px">{{ ins.summary|md|safe }}</div>
   {% if ins.weak_items %}
     <div style="margin-top:12px">
       <b>Top weak areas:</b>
@@ -21,36 +20,6 @@
       {% endfor %}
     </div>
   {% endif %}
-  <div style="margin-top:16px">
-    <h2>Recommended lesson focus</h2>
-    {% if ins.weak_items %}
-      <ol>
-      {% for w in ins.weak_items[:5] %}
-        <li><b>{{ w.concept }}</b> — {{ w.fail_count }} failures across the class; reteach with a worked example and a fresh check.</li>
-      {% endfor %}
-      </ol>
-    {% else %}
-      <p class="muted">No reteach priorities yet. Keep collecting knowledge-check results.</p>
-    {% endif %}
-  </div>
-  <div style="margin-top:16px">
-    <h2>Student intervention plans</h2>
-    {% for plan in ins.plans %}
-      <div class="card" style="background:#fbfcff;margin:10px 0">
-        <div class="spread">
-          <b>{{ plan.student.name }}</b>
-          <span class="pill {{ 'r' if plan.weaknesses else 'g' }}">{{ plan.attempts }} checks</span>
-        </div>
-        {% if plan.weaknesses %}
-          <p class="small muted">Focus: {% for w in plan.weaknesses[:3] %}{{ w.concept }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
-        {% endif %}
-        <div class="small" style="white-space:pre-wrap">{{ plan.plan }}</div>
-        <a class="btn small ghost" href="{{ url_for('teacher_student_detail', uid=plan.student.id) }}">Open full report →</a>
-      </div>
-    {% else %}
-      <p class="muted">No learner activity has been recorded yet.</p>
-    {% endfor %}
-  </div>
 </div>
 {% else %}
 <div class="card"><p class="muted">No class selected yet.</p></div>

@@ -353,6 +353,7 @@ VIDEOS = {
 
 def video_for(subject):
     title = VIDEOS.get(subject, "Study this concept")
-    query = title.replace(" ", "+")
-    url = f"https://www.youtube.com/embed/videoseries?listType=search&list={query}"
+    query = title.replace(" ", "+") + "+lesson"
+    # single-video search embed (plays the first matching educational video, not a playlist)
+    url = f"https://www.youtube.com/embed?listType=search&list={query}&index=1"
     return {"title": title, "url": url}

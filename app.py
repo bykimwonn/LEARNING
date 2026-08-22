@@ -11,7 +11,6 @@ import csv
 import io
 import json
 import datetime
-import secrets
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask import (Flask, request, session, redirect, url_for,
@@ -21,16 +20,11 @@ import db
 import ai_engine as ai
 import btai
 
+import markdown as _md
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
-secret_key = os.environ.get("SECRET_KEY")
-if not secret_key:
-    secret_key = secrets.token_hex(32)
-    if os.environ.get("RENDER"):
-        print("[security] WARNING: SECRET_KEY is missing; generated a temporary key. "
-              "Set SECRET_KEY in Render to preserve login sessions across restarts.")
-app.secret_key = secret_key
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+app.secret_key = os.environ.get("SECRET_KEY", "bt-learning-demo-secret")
 app.config["UPLOAD_FOLDER"] = os.path.join(BASE_DIR, "uploads")
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
@@ -49,6 +43,14 @@ def inject_user():
 
 
 app.jinja_env.globals["class_subjects"] = db.class_subjects
+
+
+@app.template_filter("md")
+def md_filter(text):
+    """Render Markdown (from BT AI) to safe HTML for nice, structured answers."""
+    if not text:
+        return ""
+    return _md.markdown(str(text), extensions=["extra"])
 
 
 def login_required(f):
@@ -70,20 +72,6 @@ def role_required(*roles):
             return f(*a, **kw)
         return wrap
     return deco
-
-
-def local_next(value, fallback):
-    """Accept only local redirects from form values."""
-    if value and value.startswith("/") and not value.startswith("//"):
-        return value
-    return fallback
-
-
-def teacher_can_access_student(teacher_id, student):
-    if not student or student["role"] != "school_student":
-        return False
-    return any(link["class_id"] == student["class_id"]
-               for link in db.teacher_classes(teacher_id))
 
 
 def touch_streak(user):
@@ -654,7 +642,7 @@ def teacher_student_detail(uid):
     u = current_user()
     links, sel = teacher_context()
     stu = db.get_user(uid)
-    if not teacher_can_access_student(u["id"], stu):
+    if not stu or stu["role"] != "school_student":
         abort(404)
     weaknesses = db.weakness_for_student_subject(uid, sel["subject"]) if sel else []
     return render_template("teacher/student_detail.html", user=u, links=links, sel=sel,
@@ -679,7 +667,7 @@ def teacher_roster():
 def teacher_upload():
     u = current_user()
     links, sel = teacher_context()
-    nxt = local_next(request.form.get("next"), url_for("teacher_home"))
+    nxt = request.form.get("next") or url_for("teacher_home")
     title = request.form.get("title", "").strip()
     subject = request.form.get("subject", "").strip()
     category = request.form.get("category", "notes")
@@ -741,11 +729,11 @@ def teacher_resolve(wid):
 @role_required("teacher")
 def teacher_reset_password(uid):
     stu = db.get_user(uid)
-    if teacher_can_access_student(current_user()["id"], stu):
+    if stu and stu["role"] == "school_student":
         db.reset_student_password(uid)
         flash(f"Password reset for {stu['name']} to temporary password 'btlearn123' "
               f"(forced change on next login).", "success")
-    return redirect(local_next(request.form.get("next"), url_for("teacher_roster")))
+    return redirect(request.form.get("next") or url_for("teacher_roster"))
 
 
 def _extract_pdf(file):
@@ -930,9 +918,14 @@ def learn(subject):
         timer = ai.session_countdown(u["study_start_hour"], u["study_end_hour"], now)
     # Per-concept video (BT AI picks a relevant supporting video; falls back to subject video)
     if btai.ai_enabled():
-        video = btai.recommend_video(subject, chunk["title"], u["interests"])
+        v = btai.recommend_video(subject, chunk["title"], u["interests"])
     else:
-        video = ai.video_for(subject)
+        v = ai.video_for(subject)
+    # ensure we always have a direct watch link as a fallback
+    if not v.get("watch_url"):
+        q = v.get("query") or v.get("title", subject)
+        v["watch_url"] = f"https://www.youtube.com/results?search_query={q.replace(' ', '+')}"
+    video = v
     # gather note context for the AI chat panel on this subject
     ai_context = "\n".join(c["content"] for c in course)
 
@@ -1206,9 +1199,7 @@ def ai_explain():
 @role_required("school_student", "independent")
 def ai_music():
     u = current_user()
-    return render_template("music_home.html", user=u,
-                           music_profile=btai.music_profile(u["interests"]),
-                           ai_enabled=btai.ai_enabled())
+    return render_template("music_home.html", user=u, ai_enabled=btai.ai_enabled())
 
 
 @app.route("/ai/playlist", methods=["GET", "POST"])
@@ -1220,23 +1211,8 @@ def ai_playlist():
     subject = request.form.get("subject") if request.method == "POST" else ""
     mode = mode if mode in ("focus", "break") else "focus"
     songs = btai.recommend_playlist(u["interests"], mode)
-    profile = btai.music_profile(u["interests"])
     return render_template("playlist.html", user=u, songs=songs, mode=mode,
-                           music_profile=profile,
                            subject=subject, ai_enabled=btai.ai_enabled())
-
-
-@app.route("/ai/playlist-data")
-@login_required
-@role_required("school_student", "independent")
-def ai_playlist_data():
-    """Return a learner's current playlist for the in-lesson player."""
-    u = current_user()
-    mode = request.args.get("mode", "focus")
-    if mode not in ("focus", "break"):
-        mode = "focus"
-    return jsonify({"mode": mode, "profile": btai.music_profile(u["interests"]),
-                    "songs": btai.recommend_playlist(u["interests"], mode)})
 
 
 @app.route("/ai/video", methods=["GET", "POST"])
@@ -1399,23 +1375,8 @@ def teacher_ai_insights():
         students = db.students_in_class(class_id)
         summary = btai.class_summary(subject, health, weak_items[:5], len(students),
                                      language=u.get("language") or "en")
-        plans = []
-        for student in students:
-            student_weaknesses = db.weakness_for_student_subject(student["id"], subject)
-            attempts = len(db.attempts_for_user_subject(student["id"], subject))
-            if student_weaknesses or attempts:
-                plans.append({
-                    "student": student,
-                    "attempts": attempts,
-                    "weaknesses": student_weaknesses,
-                    "plan": btai.intervention_plan(
-                        student["name"], subject, student_weaknesses, attempts,
-                        student.get("interests") or ""),
-                })
-        plans.sort(key=lambda item: max(
-            (w["fail_count"] for w in item["weaknesses"]), default=0), reverse=True)
         insights.append({"subject": subject, "health": health, "summary": summary,
-                         "weak_items": weak_items, "plans": plans})
+                         "weak_items": weak_items})
     return render_template("teacher/ai_insights.html", user=u, links=links, sel=sel,
                            insights=insights, ai_enabled=btai.ai_enabled(),
                            notifications=teacher_notification_count())

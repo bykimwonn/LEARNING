@@ -3,15 +3,25 @@
 {% block content %}
 <div class="spread" style="margin-top:16px">
   <div><h1>🎵 BT AI Music · {{ 'Focus' if mode=='focus' else 'Break' }}</h1>
-    <p class="muted">A {{ mode }} playlist chosen for you. Detected style: <b>{{ music_profile.style }}</b>.
-       Calm, low-distraction tracks so music helps you concentrate, not distract.</p>
+    <p class="muted">A {{ mode }} playlist chosen for you{% if ai_enabled %} by BT AI{% endif %}.</p>
   </div>
   <a class="btn small ghost" href="{{ url_for('student_home') }}">← Back</a>
 </div>
 
 <div class="card">
+  <h2>🔊 Focus sounds (plays in-app, no internet needed)</h2>
+  <p class="small muted">Calm background noise that won't distract you — works even offline.</p>
+  <div class="row" style="gap:8px;flex-wrap:wrap">
+    <button class="btn small" onclick="playNoise('white')">🌫️ White noise</button>
+    <button class="btn small ghost" onclick="playNoise('pink')">🌊 Pink noise</button>
+    <button class="btn small ghost" onclick="playNoise('brown')">🌲 Brown noise</button>
+    <button class="btn small ghost" onclick="stopNoise()">⏹️ Stop</button>
+  </div>
+</div>
+
+<div class="card">
   <h2>🎶 Your Playlist</h2>
-  <p class="small muted">Focus rule: {{ music_profile.focus_rule }}. Click a track to play it in-app.</p>
+  <p class="small muted">Tap a track to play it in-app, or open it on YouTube.</p>
   <div class="grid g2">
     {% for s in songs %}
     <div class="opt" onclick="togglePlayer(this,'{{ s.url }}')" style="cursor:pointer">
@@ -19,7 +29,10 @@
         <b>{{ s.title }}</b><br>
         <span class="muted small">{{ s.artist }}</span>
       </div>
-      <span class="pill b">▶</span>
+      <div class="row" style="gap:6px">
+        {% if s.watch_url %}<a class="btn small ghost" href="{{ s.watch_url }}" target="_blank" rel="noopener">▶ YT</a>{% endif %}
+        <span class="pill b">Play</span>
+      </div>
     </div>
     {% endfor %}
   </div>
@@ -29,16 +42,46 @@
 </div>
 
 <script>
-function togglePlayer(el, url){
+let audioCtx=null, noiseNode=null, gainNode=null;
+
+function playNoise(type){
+  stopNoise();
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  const bufferSize = audioCtx.sampleRate * 2;
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  let b0=0,b1=0,b2=0;
+  for(let i=0;i<bufferSize;i++){
+    const white = Math.random()*2-1;
+    if(type==='white'){
+      data[i]=white;
+    } else if(type==='pink'){
+      b0 = 0.997*b0 + 0.029591*white;
+      b1 = 0.985*b1 + 0.032534*white;
+      b2 = 0.950*b2 + 0.048056*white;
+      data[i] = (b0+b1+b2+white*0.05)/3;
+    } else { // brown
+      b0 = (b0 + 0.02*white)/1.02;
+      data[i] = b0*3.5;
+    }
+  }
+  const source = audioCtx.createBufferSource();
+  source.buffer=buffer; source.loop=true;
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = 0.12;
+  source.connect(gainNode); gainNode.connect(audioCtx.destination);
+  source.start();
+  noiseNode=source;
+}
+function stopNoise(){
+  if(audioCtx){ try{audioCtx.close();}catch(e){} audioCtx=null; noiseNode=null; }
+}
+function togglePlayer(el,url){
   const box=document.getElementById('playerBox');
   const frame=document.getElementById('musicFrame');
-  if(box.style.display==='none'){
-    frame.src=url;
-    box.style.display='block';
-  } else {
-    frame.src='';
-    box.style.display='none';
-  }
+  if(box.style.display==='none'){ frame.src=url; box.style.display='block'; }
+  else { frame.src=''; box.style.display='none'; }
 }
+window.addEventListener('beforeunload', stopNoise);
 </script>
 {% endblock %}

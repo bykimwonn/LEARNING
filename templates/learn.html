@@ -61,12 +61,12 @@
 
   {% if advance_msg %}<div class="msg ai" style="border-left:5px solid var(--good);background:#f0fbf3">
     <div class="who" style="color:var(--good)">Progress</div>
-    <div class="text"><p>{{ advance_msg }}</p></div>
+    <div class="text"><p>{{ advance_msg|safe }}</p></div>
   </div>{% endif %}
 
   {% if roadblock_msg %}<div class="roadblock">
     <span class="roadblock-badge">🚧 Roadblock</span>
-    <p style="margin:8px 0 0">{{ roadblock_msg }}</p>
+    <p style="margin:8px 0 0">{{ roadblock_msg|safe }}</p>
   </div>{% endif %}
 
   <!-- AI greeting -->
@@ -116,7 +116,13 @@
     <div class="video-box">
       <iframe src="{{ video.url }}" title="{{ video.title }}" allowfullscreen
         referrerpolicy="origin-when-cross-origin"></iframe>
-      <div class="video-cap">▶ {{ video.title }} (supporting video — loads in a full browser)</div>
+      <div class="video-cap">▶ {{ video.title }}</div>
+    </div>
+    <div class="row" style="gap:8px;margin-top:10px">
+      {% if video.watch_url %}
+      <a class="btn small" href="{{ video.watch_url }}" target="_blank" rel="noopener">▶ Open on YouTube</a>
+      {% endif %}
+      <a class="btn small ghost" href="{{ url_for('ai_playlist', mode='focus') }}" target="_blank">🎵 Focus music</a>
     </div>
   </div>
 
@@ -138,7 +144,7 @@
   {% if wrong_msg %}
     <div class="msg ai">
       <div class="who">BT Tutor · Re-explaining</div>
-      <div class="text"><p>{{ wrong_msg }}</p></div>
+      <div class="text"><p>{{ wrong_msg|safe }}</p></div>
     </div>
   {% endif %}
 
@@ -186,7 +192,7 @@
   width:280px;overflow:hidden">
   <div style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;padding:8px 12px;
     display:flex;justify-content:space-between;align-items:center">
-    <b id="musicTitle" style="font-size:13px">🎵 {{ 'Focus' if study_ok else 'Break' }} music</b>
+    <b style="font-size:13px">🎵 {{ 'Focus' if study_ok else 'Break' }} music</b>
     <button onclick="closePlayer()" style="background:none;border:0;color:#fff;font-size:16px;cursor:pointer">✕</button>
   </div>
   <iframe id="cornerFrame" src="" title="music" style="width:100%;height:120px;border:0"></iframe>
@@ -249,24 +255,15 @@ const studyOk = {{ 'true' if study_ok else 'false' }};
 let studyRemaining = REMAINING;
 
 function openPlayer(mode){
-  fetch('/ai/playlist-data?mode='+encodeURIComponent(mode))
-    .then(response => response.json())
-    .then(data => {
-      const song = data.songs && data.songs[0];
-      if(!song) return;
-      document.getElementById('cornerFrame').src = song.url;
-      document.getElementById('musicTitle').textContent =
-        '🎵 ' + (mode === 'break' ? 'Break' : 'Focus') + ' · ' + song.title;
-      document.getElementById('cornerPlayer').style.display='block';
-    })
-    .catch(() => window.open('/ai/playlist?mode='+mode, '_blank'));
+  // open the music page in a new tab (it has in-app white noise + YouTube playlists)
+  window.open('/ai/playlist?mode='+mode, '_blank');
 }
 function closePlayer(){
-  document.getElementById('cornerFrame').src='';
   document.getElementById('cornerPlayer').style.display='none';
 }
 function switchToBreak(){
-  openPlayer('break');
+  // study block ended -> go to the break music page so the student can play their break mix
+  if(studyOk) openPlayer('break');
 }
 
 // Watch the study timer: when it reaches 0, offer the break mix.

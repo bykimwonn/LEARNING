@@ -46,7 +46,37 @@ def _load_dotenv():
         pass
 
 
+def _read_secret_files():
+    """Read the Groq key from common 'secret file' locations.
+    Render can mount secret files; the app looks in several places so it works
+    whether the user mounts the file or just sets an env var."""
+    candidates = [
+        os.environ.get("GROQ_SECRET_FILE", ""),
+        "/etc/secrets/GROQ_API_KEY",
+        "/etc/secrets/groq_api_key",
+        "/var/secrets/GROQ_API_KEY",
+        "/run/secrets/GROQ_API_KEY",
+        "/mnt/secrets/GROQ_API_KEY",
+    ]
+    # Only set the key from a secret file if the env var isn't already set.
+    if os.environ.get("GROQ_API_KEY"):
+        return
+    for path in candidates:
+        if not path:
+            continue
+        try:
+            if os.path.exists(path):
+                content = open(path).read().strip()
+                if content:
+                    os.environ["GROQ_API_KEY"] = content
+                    print(f"[btai] Read GROQ key from secret file: {path}")
+                    return
+        except Exception:
+            pass
+
+
 _load_dotenv()
+_read_secret_files()
 
 _client = None
 
@@ -178,39 +208,53 @@ def explain_notes(content, interests="", academic_level=""):
         interest_hint = (f"\nPersonalise the examples using the student's interests: {interests}. "
                          "Use analogies from these where possible.")
     prompt = f"""You are BT AI, a friendly tutor. Explain the following notes in VERY SIMPLE,
-easy-to-understand English for a {academic_level or 'school'} student. Break it into short,
-digestible points. Use plain words and simple analogies. Do not just repeat the notes — make
-them make sense. Keep it under 300 words.{interest_hint}
+easy-to-understand English for a {academic_level or 'school'} student. Structure your answer
+with Markdown so it's easy to read:
+- Start with a one-line summary as a bold statement.
+- Use a "## Key points" heading followed by bullet points.
+- Use a "## Example" heading with a short, clear example (use an analogy from the student's
+  interests if relevant).
+- Use bold for important terms.
+Do NOT repeat the notes word-for-word — make them make sense. Keep it under 350 words.
+{interest_hint}
 
 NOTES:
 {content}"""
     out = _call(prompt)
     if out:
         return out.strip()
-    # Fallback: rule-based summary of first sentences
+    # Fallback: rule-based summary formatted as Markdown
     return _fallback_explain(content, interests)
 
 
 def _fallback_explain(content, interests):
     sentences = ai_engine.split_sentences(content)
     intro = ai_engine.personalized_explain(sentences[0][:60] if sentences else "this topic", interests)
-    return intro + "\n\n" + "\n".join(f"• {s}" for s in sentences[:5])
+    points = "\n".join(f"- {s}" for s in sentences[:5])
+    return f"**In a nutshell:** {intro}\n\n## Key points\n{points}"
 
 
 # ---------------------------------------------------------------------------
 # 3) Video recommendation
 # ---------------------------------------------------------------------------
 def recommend_video(subject, topic="", interests=""):
-    """Return {title, url} of a good supporting video (YouTube search embed)."""
+    """Return {title, url} of a good supporting lesson video.
+    Uses a single-video search embed (plays the top matching video), NOT a playlist,
+    so it shows an actual lesson rather than a music/playlist mix."""
     base = ai_engine.video_for(subject)
     prompt = f"""Pick ONE great YouTube search phrase for a student learning '{subject}'
 {topic and 'on "' + topic + '"' or ''}. Interests: {interests or 'none'}.
+It must be an EDUCATIONAL lesson video (not music). Append a lesson-style keyword like
+'lesson', 'tutorial', or 'explained'.
 Return STRICT JSON: {{"query": "concise search phrase (5-10 words)"}}"""
     parsed = _safe_json(prompt, fallback={"query": base["title"]})
     query = parsed.get("query", base["title"]) if isinstance(parsed, dict) else base["title"]
     query = query.replace("+", " ")[:80]
-    url = f"https://www.youtube.com/embed/videoseries?listType=search&list={query.replace(' ', '+')}"
-    return {"title": query, "url": url}
+    q = query.replace(" ", "+")
+    # embed URL (plays in-app where embeds work) + a watch URL (opens YouTube in a new tab)
+    embed = f"https://www.youtube.com/embed?listType=search&list={q}&index=1"
+    watch = f"https://www.youtube.com/results?search_query={q}"
+    return {"title": query, "url": embed, "watch_url": watch, "query": query}
 
 
 # ---------------------------------------------------------------------------
@@ -218,8 +262,7 @@ Return STRICT JSON: {{"query": "concise search phrase (5-10 words)"}}"""
 # ---------------------------------------------------------------------------
 def recommend_playlist(interests="", mode="focus"):
     """Return a list of songs {title, artist, url}. mode: 'focus' or 'break'."""
-    profile = music_profile(interests)
-    interest_hint = profile["style"]
+    interest_hint = interests or "generic calm"
     prompt = f"""You are BT AI. The student likes: {interest_hint}.
 Generate a '{mode}' playlist of 8 songs — for study/focus, pick calm, low-distraction,
 instrumental or soft tracks; for break, pick upbeat, energising tracks they'd enjoy.
@@ -240,28 +283,9 @@ Return STRICT JSON (no markdown): an array of objects:
             if title:
                 q = f"{title} {artist}".strip().replace(" ", "+")
                 out.append({"title": title, "artist": artist,
-                            "url": f"https://www.youtube.com/embed?listType=search&list={q}"})
+                            "url": f"https://www.youtube.com/embed?listType=search&list={q}&index=1",
+                            "watch_url": f"https://www.youtube.com/results?search_query={q}"})
     return out or _fallback_playlist(interests, mode)
-
-
-def music_profile(interests=""):
-    """Detect a lightweight music profile without requiring an external music API."""
-    text = (interests or "").lower()
-    styles = []
-    for keys, label in (
-        (("afrobeat", "afro beats", " amapiano", "dance"), "Afrobeats and amapiano"),
-        (("rock", "metal", "guitar"), "rock and guitar"),
-        (("rap", "hip hop", "hip-hop"), "hip-hop and rap"),
-        (("gospel", "church"), "gospel and uplifting"),
-        (("jazz", "soul", "rnb", "r&b"), "jazz, soul and R&B"),
-        (("classical", "piano", "orchestra"), "classical and piano"),
-        (("electronic", "edm", "techno"), "electronic"),
-    ):
-        if any(key in text for key in keys):
-            styles.append(label)
-    style = ", ".join(styles) if styles else "calm, melodic music"
-    return {"style": style, "source": "learner interests", "focus_rule":
-            "instrumental, lyric-light, steady tempo"}
 
 
 def _fallback_playlist(interests, mode):
@@ -275,7 +299,8 @@ def _fallback_playlist(interests, mode):
         genre = "classical"
     word = "focus" if mode == "focus" else "energizing"
     return [{"title": f"{genre.title()} {word} mix {i+1}", "artist": genre.title(),
-             "url": f"https://www.youtube.com/embed?listType=search&list={genre}+{word}+mix"}
+             "url": f"https://www.youtube.com/embed?listType=search&list={genre}+{word}+mix&index=1",
+             "watch_url": f"https://www.youtube.com/results?search_query={genre}+{word}+mix"}
             for i in range(6)]
 
 
@@ -297,7 +322,11 @@ def chat(notes_context, message, interests="", academic_level="", history=None):
 
     prompt = f"""You are BT AI, a friendly tutor. Answer the student's question using ONLY the
 notes provided. If the notes don't cover it, say so and explain in simple English.
-Keep it clear and brief (under 180 words). {interest_hint}
+Use Markdown so the answer looks clean:
+- Start with a short direct answer in bold.
+- Use bullet points for the main explanation.
+- Use a short "## Example" with an analogy if helpful.
+Keep it clear and brief (under 200 words). {interest_hint}
 Academic level: {academic_level or 'school'}
 
 NOTES CONTEXT:
@@ -315,14 +344,14 @@ Student's question: {message}"""
 def _fallback_chat(context, message, interests):
     sentences = ai_engine.split_sentences(context)
     if not sentences:
-        return "I don't have notes for this yet. Add some notes and I can help you."
+        return "**I don't have notes for this yet.** Add some notes and I can help you."
     # pick sentences that share a word with the question
     qwords = set(re.findall(r"\b[a-z]{4,}\b", message.lower()))
     hits = [s for s in sentences if any(w in s.lower() for w in qwords)]
     source = hits[:2] or sentences[:2]
     intro = ai_engine.personalized_explain(message[:50], interests)
-    return (f"{intro}\n\nBased on your notes: "
-            + "\n".join(f"• {s}" for s in source))
+    return (f"**{intro}**\n\nBased on your notes:\n"
+            + "\n".join(f"- {s}" for s in source))
 
 
 # ---------------------------------------------------------------------------
@@ -335,19 +364,22 @@ def progress_coach(subject, total_questions, correct, wrong, weak_concepts, inte
 {total_questions} knowledge checks, got {correct} right ({acc}%) and {wrong} wrong.
 Weak concepts they struggled with: {weak_concepts or 'none'}.
 Interests: {interests or 'none'}.
-Write a short, encouraging weekly review (under 200 words): 1) celebrate what's going well,
-2) point out the exact concepts to review, 3) give a concrete next-step study plan. Use a
-friendly, motivating tone."""
+Write a short, encouraging weekly review (under 220 words) using Markdown:
+- Start with a bold "**Your progress:**" line.
+- Use a "## What's going well" heading with bullets.
+- Use a "## What to review" heading with bullets (the weak concepts).
+- End with a "## Next step" bold suggestion.
+Use a friendly, motivating tone."""
     out = _call(prompt, temperature=0.6)
     if out:
         return out.strip()
     if total_questions == 0:
-        return ("You haven't attempted any knowledge checks yet. Head to a lesson and take "
+        return ("**You haven't attempted any knowledge checks yet.** Head to a lesson and take "
                 "your first check so BT AI can coach you.")
     tip = (f"Focus on reviewing: {', '.join(weak_concepts[:3])}." if weak_concepts
            else "You're on track — keep your streak going!")
-    return (f"You answered {total_questions} checks with {acc}% accuracy ({correct} right, "
-            f"{wrong} wrong) in {subject}. {tip} Your study streak is building nicely.")
+    return (f"**Your progress:** {total_questions} checks, {acc}% accuracy in {subject}.\n\n"
+            f"## What to review\n- {tip}\n\n**Next step:** keep your streak going!")
 
 
 # ---------------------------------------------------------------------------
@@ -361,12 +393,14 @@ Question: {question}
 The correct answer was: {correct_answer}
 They chose: {chosen}
 Explain, kindly and simply, why '{correct_answer}' is correct and why the other answer was a
-mistake. Use an analogy to make it stick. Under 140 words. {interest_hint}"""
+mistake. Use Markdown: a bold answer, a bullet for the key reason, and a short "## Example"
+analogy. Under 150 words. {interest_hint}"""
     out = _call(prompt, temperature=0.5)
     if out:
         return out.strip()
-    return (f"The correct answer was '{correct_answer}'. Go back to the notes and re-read the "
-            f"part about this — it explains why that's the right choice. {ai_engine.SHONA['try_again']}")
+    return (f"**The correct answer is '{correct_answer}'.**\n\n"
+            f"## Why\n- Go back to the notes and re-read the part about this topic.\n\n"
+            f"{ai_engine.SHONA['try_again']}")
 
 
 # ---------------------------------------------------------------------------
@@ -426,44 +460,18 @@ def class_summary(subject, health, weak_items, class_size, interests_hint="", la
     weak_lines = "; ".join(f"{w['student_name']} on {w['concept']} ({w['fail_count']}x)"
                            for w in weak_items[:4])
     prompt = f"""You are BT AI. Summarize for a teacher: class {subject} health {health}%,
-{class_size} students, top weak areas: {weak_lines}. Give a short paragraph (under 120 words):
-what's going well, the key knowledge gaps to reteach, and one actionable suggestion."""
+{class_size} students, top weak areas: {weak_lines}. Use Markdown:
+- Start with a bold "**Class overview:**" line.
+- Use a "## What's going well" heading with a short bullet or two.
+- Use a "## Knowledge gaps to reteach" heading with bullets.
+- End with a bold "**Suggestion:**" one-liner.
+Keep it under 130 words."""
     out = _call(prompt, temperature=0.5)
     if out:
         return out.strip()
-    return (f"Class health is {health or 'n/a'}% in {subject} across {class_size} students. "
-            f"Areas needing attention: {weak_lines}. Consider re-teaching these concepts and "
-            f"assigning targeted practice.")
-
-
-def intervention_plan(student_name, subject, weaknesses, attempts, interests=""):
-    """Create teacher-facing next steps for one learner from recorded evidence."""
-    weak_lines = "; ".join(
-        f"{w['concept']} ({w['fail_count']} failures)" for w in weaknesses[:5]
-    ) or "no unresolved weakness alerts"
-    prompt = f"""You are BT AI supporting a teacher. Create a concise intervention plan for
-student {student_name} in {subject}. The student has {attempts} recorded knowledge-check
-attempts and these unresolved alerts: {weak_lines}. Interests: {interests or 'unknown'}.
-Return plain text with exactly these headings:
-Priority:
-Reteach:
-Practice:
-Check-in:
-Keep it under 100 words, specific and practical. Do not invent scores or facts."""
-    out = _call(prompt, temperature=0.4)
-    if out:
-        return out.strip()
-    if weaknesses:
-        concepts = ", ".join(w['concept'] for w in weaknesses[:3])
-        return (f"Priority: Address {concepts}.\n"
-                f"Reteach: Model each concept with one worked example, then ask the student "
-                "to explain the key step in their own words.\n"
-                f"Practice: Assign 3 short questions focused on {concepts}.\n"
-                "Check-in: Review one answer next lesson and mark the alert resolved only "
-                "after a successful fresh check.")
-    return ("Priority: Maintain momentum.\nReteach: Ask the student to summarize the "
-            "latest concept.\nPractice: Use one mixed review question.\n"
-            "Check-in: Revisit progress next lesson.")
+    return (f"**Class overview:** health {health or 'n/a'}% in {subject} across {class_size} students.\n\n"
+            f"## Knowledge gaps to reteach\n{weak_lines}\n\n"
+            f"**Suggestion:** re-teach these concepts and assign targeted practice.")
 
 
 # ---------------------------------------------------------------------------

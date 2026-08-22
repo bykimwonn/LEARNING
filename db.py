@@ -17,19 +17,12 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 IS_PG = bool(DATABASE_URL)
 
 if DATABASE_URL:
-    # Render and older PostgreSQL providers may still return the legacy
-    # postgres:// scheme, which SQLAlchemy 2 no longer accepts.
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = "postgresql+psycopg2://" + DATABASE_URL[len("postgres://"):]
     engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 else:
     DB_PATH = os.environ.get(
         "DATABASE_PATH", os.path.join(BASE_DIR, "bt.db"))
     os.makedirs(os.path.dirname(DB_PATH) or ".", exist_ok=True)
     engine = create_engine(f"sqlite:///{DB_PATH}")
-    if os.environ.get("RENDER"):
-        print("[database] WARNING: DATABASE_URL is missing; using temporary SQLite. "
-              "Configure PostgreSQL to preserve accounts across redeploys.")
 
 
 # ---------------------------------------------------------------------------
@@ -190,13 +183,11 @@ _PG_DDL = [
 # users
 # ---------------------------------------------------------------------------
 def user_by_student_id(sid):
-    return _fetch_one("SELECT * FROM users WHERE lower(trim(student_id))=lower(trim(:s))",
-                      {"s": sid})
+    return _fetch_one("SELECT * FROM users WHERE student_id=:s", {"s": sid})
 
 
 def user_by_email(email):
-    return _fetch_one("SELECT * FROM users WHERE lower(trim(email))=lower(trim(:e))",
-                      {"e": email})
+    return _fetch_one("SELECT * FROM users WHERE email=:e", {"e": email})
 
 
 def get_user(uid):

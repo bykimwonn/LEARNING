@@ -18,7 +18,7 @@
       {% else %}
         <div style="margin:8px 0;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px">
           <b style="color:var(--brand);font-size:12px">🤖 BT AI</b>
-          <div class="small" style="white-space:pre-wrap;margin-top:4px">{{ h.text }}</div>
+          <div class="md-body" style="margin-top:4px">{{ h.text|md|safe }}</div>
         </div>
       {% endif %}
     {% endfor %}
