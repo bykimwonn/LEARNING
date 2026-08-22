@@ -1,5 +1,5 @@
 """
-BT AI — the Groq-powered intelligence layer for BT LEARNING.
+BT AI — the intelligence layer for BT LEARNING.
 
 BT AI does the "heavy lifting": explaining notes in plain English, building
 personalized study timetables, recommending videos, generating focus/break
@@ -7,14 +7,14 @@ music playlists, and tailoring explanations to a student's interests.
 
 The app UI calls it "BT AI" regardless of the underlying model.
 
-Backend: Groq (free tier, fast, no billing needed). The API key is read from
-the GROQ_API_KEY environment variable (or a local, git-ignored .env file). If
-no key is set, the network is blocked, or Groq returns an error, every function
-falls back gracefully to the built-in rule-based engine (ai_engine.py) so the
-app ALWAYS works.
+Backend: supports BOTH Gemini and Groq. It auto-detects whichever key is set:
+  - GEMINI_API_KEY  -> uses Google Gemini
+  - GROQ_API_KEY    -> uses Groq (fallback option)
+If no key is set, the network is blocked, or the API returns an error, every
+function falls back gracefully to the built-in rule-based engine (ai_engine.py)
+so the app ALWAYS works.
 
-  NEVER hardcode or commit the API key. Set GROQ_API_KEY in Render's
-  Environment tab instead.
+  NEVER hardcode or commit the API key. Set it in Render's Environment tab.
 """
 import os
 import re
@@ -23,15 +23,16 @@ import datetime
 
 import ai_engine  # rule-based fallback
 
-MODEL_NAME = "llama-3.3-70b-versatile"   # strong free Groq model
-# MODEL_NAME = "llama-3.1-8b-instant"    # lighter/faster free model (fallback option)
+# Model names for each provider
+GEMINI_MODEL = "gemini-2.0-flash"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 def _load_dotenv():
-    """Load GROQ_API_KEY from a local .env file if present (dev only)."""
+    """Load API keys from a local .env file if present (dev only)."""
     try:
         base = os.path.dirname(os.path.abspath(__file__))
         for name in (".env", "secrets.env"):
@@ -47,86 +48,117 @@ def _load_dotenv():
 
 
 def _read_secret_files():
-    """Read the Groq key from common 'secret file' locations.
-    Render can mount secret files; the app looks in several places so it works
-    whether the user mounts the file or just sets an env var."""
-    candidates = [
-        os.environ.get("GROQ_SECRET_FILE", ""),
-        "/etc/secrets/GROQ_API_KEY",
-        "/etc/secrets/groq_api_key",
-        "/var/secrets/GROQ_API_KEY",
-        "/run/secrets/GROQ_API_KEY",
-        "/mnt/secrets/GROQ_API_KEY",
-    ]
-    # Only set the key from a secret file if the env var isn't already set.
-    if os.environ.get("GROQ_API_KEY"):
-        return
-    for path in candidates:
-        if not path:
+    """Read API keys from common 'secret file' locations.
+    Supports both GROQ and GEMINI secret files."""
+    for var, names in {
+        "GROQ_API_KEY": ["GROQ_SECRET_FILE", "/etc/secrets/GROQ_API_KEY",
+                         "/var/secrets/GROQ_API_KEY", "/run/secrets/GROQ_API_KEY",
+                         "/mnt/secrets/GROQ_API_KEY"],
+        "GEMINI_API_KEY": ["GEMINI_SECRET_FILE", "/etc/secrets/GEMINI_API_KEY",
+                           "/var/secrets/GEMINI_API_KEY", "/run/secrets/GEMINI_API_KEY",
+                           "/mnt/secrets/GEMINI_API_KEY"],
+    }.items():
+        if os.environ.get(var):
             continue
-        try:
-            if os.path.exists(path):
-                content = open(path).read().strip()
-                if content:
-                    os.environ["GROQ_API_KEY"] = content
-                    print(f"[btai] Read GROQ key from secret file: {path}")
-                    return
-        except Exception:
-            pass
+        for path in names:
+            if not path:
+                continue
+            try:
+                if os.path.exists(path):
+                    content = open(path).read().strip()
+                    if content:
+                        os.environ[var] = content
+                        print(f"[btai] Read {var} from secret file: {path}")
+                        break
+            except Exception:
+                pass
 
 
 _load_dotenv()
 _read_secret_files()
 
-_client = None
+_groq_client = None
+_gemini_model = None
+_provider = None  # 'gemini', 'groq', or None
 
 
-def get_api_key():
-    return (os.environ.get("GROQ_API_KEY") or "").strip()
-
-
-def _get_client():
-    """Return a configured Groq client, or None if unusable."""
-    global _client
-    if _client is not None:
-        return _client
-    key = get_api_key()
-    if not key:
-        return None
-    try:
-        import groq
-        _client = groq.Groq(api_key=key)
-    except Exception:
-        _client = False  # disable after first failure
-    return _client if _client else None
+def get_provider():
+    """Return the active provider ('gemini' or 'groq') or None if no key set."""
+    global _provider
+    if _provider is not None:
+        return _provider
+    if os.environ.get("GEMINI_API_KEY", "").strip():
+        _provider = "gemini"
+    elif os.environ.get("GROQ_API_KEY", "").strip():
+        _provider = "groq"
+    else:
+        _provider = None
+    return _provider
 
 
 def ai_enabled():
-    """True if a real Groq model is configured and usable."""
-    return _get_client() is not None
+    """True if a real AI model (Gemini or Groq) is configured and usable."""
+    return get_provider() is not None
+
+
+def _get_client():
+    """Return the active provider's client/model, or None if unusable."""
+    provider = get_provider()
+    if provider == "groq":
+        global _groq_client
+        if _groq_client is not None:
+            return _groq_client
+        try:
+            import groq
+            _groq_client = groq.Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        except Exception:
+            _groq_client = False
+        return _groq_client if _groq_client else None
+    elif provider == "gemini":
+        global _gemini_model
+        if _gemini_model is not None:
+            return _gemini_model
+        try:
+            from google import genai as _genai
+            _gemini_model = _genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
+        except Exception:
+            _gemini_model = False
+        return _gemini_model if _gemini_model else None
+    return None
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 def _call(prompt, temperature=0.7, max_tokens=None):
-    """Call Groq and return text. Returns None on any failure."""
+    """Call the active AI provider and return text. Returns None on any failure."""
+    provider = get_provider()
     client = _get_client()
     if not client:
         return None
     try:
-        kwargs = {"temperature": temperature}
-        if max_tokens:
-            kwargs["max_tokens"] = max_tokens
-        resp = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            **kwargs,
-        )
-        return resp.choices[0].message.content
+        if provider == "groq":
+            kwargs = {"temperature": temperature}
+            if max_tokens:
+                kwargs["max_tokens"] = max_tokens
+            resp = client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                **kwargs,
+            )
+            return resp.choices[0].message.content
+        elif provider == "gemini":
+            gen_kwargs = {"temperature": temperature}
+            if max_tokens:
+                gen_kwargs["max_output_tokens"] = max_tokens
+            resp = client.models.generate_content(model=GEMINI_MODEL,
+                                                  contents=prompt,
+                                                  config=gen_kwargs)
+            return resp.text
     except Exception as e:
-        print(f"[btai] Groq call failed ({type(e).__name__}): {str(e)[:120]}")
+        print(f"[btai] {provider} call failed ({type(e).__name__}): {str(e)[:120]}")
         return None
+    return None
 
 
 def _extract_json(text):

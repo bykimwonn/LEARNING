@@ -23,6 +23,7 @@ pip install \
   "gunicorn>=21.0" \
   "pypdf>=4.0" \
   "groq>=1.0" \
-  "markdown>=3.0"
+  "markdown>=3.0" \
+  "google-genai>=1.0"
 
 echo "► Build complete."

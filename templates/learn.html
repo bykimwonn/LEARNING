@@ -127,7 +127,7 @@
   <div class="msg ai">
     <div class="who">Supporting Visual</div>
     <div class="video-box">
-      <iframe src="{{ video.url }}" title="{{ video.title }}" allowfullscreen
+      <iframe src="{{ video.url }}&rel=0" title="{{ video.title }}" allowfullscreen
         referrerpolicy="origin-when-cross-origin"></iframe>
       <div class="video-cap">▶ {{ video.title }}</div>
     </div>
@@ -137,6 +137,8 @@
       {% endif %}
       <a class="btn small ghost" href="{{ url_for('ai_playlist', mode='focus') }}" target="_blank">🎵 Focus music</a>
     </div>
+    <p class="small muted" style="margin-top:6px">If the video doesn't play here, tap
+      <b>Open on YouTube</b> — it always works.</p>
   </div>
 
   <!-- Feedback on last answer -->
