@@ -8,7 +8,7 @@
 <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.svg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
+<body class="{{ session.get('theme','light') }}">
 {% if current_user %}
 <div class="top">
   <div class="wrap">
@@ -29,6 +29,7 @@
       <span class="pill b">ELO {{ current_user.elo }}</span>
       <span class="pill g">🔥 {{ current_user.streak }}</span>
       <span class="pill">{{ current_user.role|replace('_',' ')|title }}</span>
+      <a href="{{ url_for('settings_page') }}">⚙️</a>
       <a class="logout" href="{{ url_for('logout') }}">Log out</a>
     </nav>
   </div>

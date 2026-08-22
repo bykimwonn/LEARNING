@@ -1332,14 +1332,19 @@ def ai_new_songs():
 @login_required
 @role_required("school_student", "independent")
 def ai_video_search():
-    """Visual: students search for videos and watch them."""
+    """Visual: students search for videos and watch them.
+    Detects non-educational searches and notifies the student."""
     u = current_user()
     query = request.args.get("q", "")
     videos = []
+    notice = None
+    is_edu = True
     if query.strip():
-        videos = btai.search_videos(query)
+        is_edu, notice = btai.is_educational_query(query)
+        if is_edu:
+            videos = btai.search_videos(query)
     return render_template("video_search.html", user=u, query=query, videos=videos,
-                           ai_enabled=btai.ai_enabled())
+                           is_edu=is_edu, notice=notice, ai_enabled=btai.ai_enabled())
 
 
 @app.route("/ai/playlist", methods=["GET", "POST"])
@@ -1358,11 +1363,16 @@ def ai_playlist():
 # ---------------------------------------------------------------------------
 # BOOK UPLOAD (up to 25MB) with progress + SOURCES library
 # ---------------------------------------------------------------------------
+ALLOWED_UPLOAD_EXTS = {"pdf", "docx", "txt", "md"}
+
+
 @app.route("/book/upload", methods=["POST"])
 @login_required
 @role_required("school_student", "independent")
 def book_upload():
     u = current_user()
+    # Handle oversized uploads gracefully (Flask raises 413 before reaching here;
+    # the 413 handler shows a friendly message).
     try:
         title = request.form.get("title", "").strip()
         subject = request.form.get("subject", "").strip()
@@ -1370,28 +1380,39 @@ def book_upload():
         if not file or not file.filename:
             flash("Please select a book file to upload.", "error")
             return redirect(url_for("student_sources"))
+
         size = file.seek(0, 2); file.seek(0)
         if not title:
             title = file.filename.rsplit(".", 1)[0]
-        # save the file
+        ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
+        if ext not in ALLOWED_UPLOAD_EXTS:
+            flash("Unsupported file type. Please upload PDF, Word (.docx) or text (.txt/.md).", "error")
+            return redirect(url_for("student_sources"))
+
+        # 1) Store the raw file permanently (a source of truth)
+        os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
         safe_name = f"u{u['id']}_{int(datetime.datetime.now().timestamp())}_{file.filename.replace(' ','_')}"
         path = os.path.join(app.config["UPLOAD_FOLDER"], safe_name)
         file.save(path)
-        # extract text
-        ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
+
+        # 2) Extract text, capped to a safe size so processing never times out
         text = ""
         if ext == "pdf":
             text = _extract_pdf_file(path)
         elif ext == "docx":
             text = _extract_docx(path)
-        elif ext in ("txt", "md"):
-            text = open(path, encoding="utf-8", errors="ignore").read()
         else:
-            text = ""
-        text = (text or "").strip()
+            try:
+                text = open(path, encoding="utf-8", errors="ignore").read()
+            except Exception:
+                text = ""
+        text = (text or "").strip()[:200000]  # cap to ~200k chars to stay fast
+
         if not text:
-            flash("Could not read text from that file. Try a PDF or text file.", "error")
+            flash("Could not read text from that file. Try a text-based PDF or .txt file.", "error")
             return redirect(url_for("student_sources"))
+
+        # 3) Process into notes + chunks
         subj = subject or "General"
         nid = db.add_note(title=title, subject=subj, category="notes",
                           owner_id=u["id"], owner_role=u["role"], class_id=u["class_id"],
@@ -1743,8 +1764,74 @@ def practice_answer(subject):
 
 
 # ---------------------------------------------------------------------------
-# RANKINGS  (Phase 5)
+# SETTINGS — dark mode, account management
 # ---------------------------------------------------------------------------
+@app.route("/settings")
+@login_required
+def settings_page():
+    u = current_user()
+    theme = session.get("theme", "light")
+    return render_template("settings.html", user=u, theme=theme)
+
+
+@app.route("/settings/theme", methods=["POST"])
+@login_required
+def settings_theme():
+    theme = request.form.get("theme", "light")
+    session["theme"] = theme if theme in ("light", "dark") else "light"
+    return redirect(request.referrer or url_for("settings_page"))
+
+
+@app.route("/settings/delete", methods=["POST"])
+@login_required
+def settings_delete():
+    """Delete the user's account completely. Requires password confirmation +
+    feedback, which is emailed to the site owner."""
+    u = current_user()
+    password = request.form.get("password", "")
+    feedback = request.form.get("feedback", "").strip()
+    if not check_password_hash(u["password_hash"], password):
+        flash("Incorrect password. Account not deleted.", "error")
+        return redirect(url_for("settings_page"))
+    # send feedback email (via env-configured SMTP; otherwise log it)
+    _send_feedback_email(u, feedback)
+    # delete all user data
+    db.delete_user_completely(u["id"])
+    session.clear()
+    flash("Your account has been deleted. We're sorry to see you go.", "info")
+    return redirect(url_for("splash"))
+
+
+def _send_feedback_email(user, feedback):
+    """Email deletion feedback to the owner using SMTP env vars, if configured."""
+    owner = os.environ.get("FEEDBACK_EMAIL", "bykimtann@gmail.com")
+    smtp_host = os.environ.get("SMTP_HOST", "")
+    smtp_user = os.environ.get("SMTP_USER", "")
+    smtp_pass = os.environ.get("SMTP_PASS", "")
+    body = (f"BT LEARNING account deletion feedback\n"
+            f"----------------------------------\n"
+            f"Name: {user['name']}\nEmail: {user.get('email')}\n"
+            f"Role: {user['role']}\n\n"
+            f"Reason for leaving:\n{feedback or '(no feedback given)'}\n")
+    if smtp_host and smtp_user and smtp_pass:
+        try:
+            import smtplib
+            from email.mime.text import MIMEText
+            msg = MIMEText(body)
+            msg["Subject"] = "BT LEARNING — Account Deletion Feedback"
+            msg["From"] = smtp_user
+            msg["To"] = owner
+            with smtplib.SMTP(smtp_host, int(os.environ.get("SMTP_PORT", "587"))) as s:
+                s.starttls()
+                s.login(smtp_user, smtp_pass)
+                s.send_message(msg)
+            return
+        except Exception as e:
+            print("Feedback email failed:", e)
+    # Fallback: log it so the owner can still read it in Render logs
+    print("=== ACCOUNT DELETION FEEDBACK ===\n" + body)
+
+
 @app.route("/ranking")
 @login_required
 def ranking():

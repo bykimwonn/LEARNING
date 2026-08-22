@@ -657,3 +657,20 @@ def set_ai_state(user_id, **kw):
         binds = {"u": user_id, **kw}
         _execute(f"INSERT INTO ai_state ({', '.join(cols)}) VALUES "
                  f"(:u, {', '.join(':'+k for k in kw)})", binds)
+
+
+def delete_user_completely(user_id):
+    """Delete a user and all their associated data."""
+    for table in ("music_favorites", "books", "ai_state", "study_schedule", "focus_log",
+                  "completed_concepts", "progress", "weaknesses", "quiz_attempts",
+                  "user_subjects"):
+        try:
+            _execute(f"DELETE FROM {table} WHERE user_id=:u", {"u": user_id})
+        except Exception:
+            pass
+    # delete their notes
+    notes = _fetch("SELECT id FROM notes WHERE owner_id=:u", {"u": user_id})
+    for n in notes:
+        _execute("DELETE FROM note_chunks WHERE note_id=:i", {"i": n["id"]})
+        _execute("DELETE FROM notes WHERE id=:i", {"i": n["id"]})
+    _execute("DELETE FROM users WHERE id=:u", {"u": user_id})

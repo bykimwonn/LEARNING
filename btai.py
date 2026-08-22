@@ -296,6 +296,35 @@ Return STRICT JSON: {{"query": "concise search phrase (5-10 words)"}}"""
     return {"title": query, "url": embed, "watch_url": watch, "query": query}
 
 
+# Words that clearly indicate a NON-educational search (music/games/entertainment/social)
+NON_EDU_WORDS = [
+    "music", "song", "album", "lyrics", "video official", "mv ", "movie", "film",
+    "game", "gaming", "playstation", "xbox", "fifa", "gta", "fortnite", "minecraft",
+    "tiktok", "instagram", "facebook", "twitter", "celeb", "celebrity", "gossip",
+    "match", "highlights", "goal", "dance", "party", "club", "drama", "series",
+]
+
+
+def is_educational_query(query):
+    """Return (bool_is_educational, reason). Detects clearly non-educational searches."""
+    q = (query or "").lower()
+    # educational markers override
+    edu_markers = ["lesson", "tutorial", "explain", "what is", "how to solve", "class",
+                   "biology", "math", "chemistry", "physics", "geography", "history",
+                   "english", "science", "learn", "study", "definition", "formula",
+                   "algebra", "photosynthesis", "equations", "exam"]
+    if any(m in q for m in edu_markers):
+        return True, None
+    # if it clearly mentions non-educational content, flag it
+    hits = [w for w in NON_EDU_WORDS if w in q]
+    if hits:
+        return False, f"'{query}' looks like it's about {', '.join(hits)} rather than studying."
+    # short one-word queries that aren't obviously educational -> warn gently
+    if len(q.split()) <= 2 and not any(m in q for m in edu_markers):
+        return False, f"'{query}' may not be an educational topic. Please search for lessons, subjects or concepts."
+    return True, None
+
+
 def search_videos(query, max_results=12):
     """Search YouTube for videos matching a query. Returns list of
     {title, url, watch_url, thumbnail, channel}. Falls back to search embed."""
@@ -590,16 +619,48 @@ Student's question: {message}"""
 
 
 def _fallback_chat(context, message, interests):
+    m = (message or "").lower().strip()
+    # greetings and casual messages should always get a friendly reply
+    if not m or len(m) < 2:
+        return "**Hey! 👋** I'm BT AI, your study buddy. Ask me anything — explain a topic, solve a problem, or just say hi."
+    if any(g in m for g in ["hi", "hello", "hey", "how are", "morning", "afternoon", "evening", "yo ", "good day"]):
+        return "**Hey there! 👋** Great to see you. I can help you learn anything — what subject are you working on today?"
+    if any(g in m for g in ["thanks", "thank you", "thankyou"]):
+        return "**You're welcome! 😊** I'm always here when you need me. Keep up the great work!"
+    if any(g in m for g in ["who are you", "what are you", "your name"]):
+        return "**I'm BT AI** — your personal study tutor from BT LEARNING. I make learning simple, and I tailor everything to how you learn best."
+    if "?" not in m and len(m) < 30:
+        # short non-question -> keep conversation going
+        return f"**Interesting!** Tell me more, {interests.split(',')[0].title() if interests else 'friend'} — or let's dive into a topic together."
+    # otherwise try to answer from notes if available
     sentences = ai_engine.split_sentences(context)
-    if not sentences:
-        return "**I don't have notes for this yet.** Add some notes and I can help you."
-    # pick sentences that share a word with the question
-    qwords = set(re.findall(r"\b[a-z]{4,}\b", message.lower()))
-    hits = [s for s in sentences if any(w in s.lower() for w in qwords)]
-    source = hits[:2] or sentences[:2]
-    intro = ai_engine.personalized_explain(message[:50], interests)
-    return (f"**{intro}**\n\nBased on your notes:\n"
-            + "\n".join(f"- {s}" for s in source))
+    if sentences:
+        qwords = set(re.findall(r"\b[a-z]{4,}\b", m))
+        hits = [s for s in sentences if any(w in s.lower() for w in qwords)]
+        source = hits[:2] or sentences[:2]
+        intro = ai_engine.personalized_explain(message[:50], interests)
+        return (f"**{intro}**\n\nBased on your notes:\n" + "\n".join(f"- {s}" for s in source))
+    # General question, no notes: answer from general knowledge templates
+    return _general_knowledge_answer(message, interests)
+
+
+def _general_knowledge_answer(message, interests):
+    """Answer general questions even with no notes, using light built-in knowledge.
+    The real AI (Gemini/Groq) handles the deep answers; this is only the offline fallback."""
+    m = message.lower()
+    topic = message.strip()
+    if any(w in m for w in ["what is ", "define ", "meaning of ", "what are ", "who is "]):
+        return (f"**Let's break that down.**\n\n- **{topic}** is a topic you can explore in your "
+                f"lessons or by searching the **Visual** tab for a video.\n- Add study notes and I "
+                f"can explain it in your own words.\n\n💡 For a full, detailed answer right now, "
+                f"make sure the AI is connected (you'll see **'Connected'** in the chat header). "
+                f"Then I can answer anything — like ChatGPT or Gemini.")
+    return (f"Great question! I'd love to explain **{topic}** properly.\n\n"
+            f"- When **BT AI is connected** (check the header — it shows **'Connected'**), I can "
+            f"answer anything, just like ChatGPT or Gemini.\n"
+            f"- Right now I'm on my **offline engine**, which works best with your notes.\n"
+            f"- Tip: use the **Visual** tab to find a video on **{topic}**, or add notes and I'll "
+            f"explain it from those.")
 
 
 # ---------------------------------------------------------------------------

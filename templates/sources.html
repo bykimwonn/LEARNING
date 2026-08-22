@@ -64,7 +64,17 @@ function startUpload(e){
       document.getElementById('pstatus').textContent='Uploading… '+pct+'%';
     }
   };
-  xhr.onload=function(){ window.location.href='{{ url_for("student_sources") }}'; };
+  xhr.onload=function(){
+    // Server sends a redirect (302) -> follow it. On errors (400/413/500) show message.
+    if(xhr.status>=200 && xhr.status<400){
+      window.location.href='{{ url_for("student_sources") }}';
+    } else {
+      document.getElementById('pstatus').textContent='Upload failed ('+xhr.status+'). Please try again.';
+    }
+  };
+  xhr.onerror=function(){
+    document.getElementById('pstatus').textContent='Network error uploading. Please try again.';
+  };
   xhr.send(fd);
 }
 </script>

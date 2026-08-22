@@ -214,3 +214,34 @@ footer{text-align:center;color:var(--muted);padding:40px 0 24px;font-size:13px}
 .prof-table th{text-align:left;padding:10px 12px;color:var(--muted);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px;border-bottom:2px solid var(--line)}
 .prof-table td{padding:12px;border-bottom:1px solid var(--line);vertical-align:middle}
 .prof-table tr:hover td{background:#fafbfc}
+
+/* ===== Dark mode ===== */
+body.dark{--bg:#0f1524;--card:#171e30;--ink:#e6ecf5;--muted:#8b97ad;
+  --brand:#7aa2ff;--brand2:#5ec8d0;--gold:#d9b45c;--good:#3ddc84;--bad:#ff6b6b;
+  --warn:#f5a623;--line:#27324a;--chip:#1f2940;
+  --shadow:0 8px 26px rgba(0,0,0,.35);}
+body.dark{background:var(--bg);color:var(--ink)}
+body.dark .top{background:#12192a;border-bottom:1px solid var(--line)}
+body.dark .card,body.dark .kpi,body.dark .mini-card,body.dark .subject-card,body.dark .concept,body.dark .msg{background:var(--card);border-color:var(--line)}
+body.dark .tool{background:var(--card);border-color:var(--line)}
+body.dark .tool:hover{border-color:var(--brand2)}
+body.dark input,body.dark select,body.dark textarea{background:#0f1524;color:var(--ink);border-color:var(--line)}
+body.dark .prof-table tr:hover td{background:#1c2640}
+body.dark .flash{background:#1f2940}
+body.dark footer{background:#12192a;border-color:var(--line)}
+body.dark .gemini-wrap{background:var(--card)}
+body.dark .gemini-head,body.dark .gemini-input{background:#12192a}
+body.dark .bubble.ai{background:var(--chip)}
+body.dark .check-panel{background:linear-gradient(135deg,#1a2440,#132b38)}
+body.dark .video-cap{background:#0f1524}
+body.dark .rank-card,body.dark .opt{background:var(--card);border-color:var(--line)}
+body.dark .qblock{background:#1f2940}
+body.dark .hintbox{background:#2a2418;border-color:#6b5626;color:var(--ink)}
+body.dark .roadblock{background:#2a2418;border-color:#6b5626}
+body.dark .cal-day,body.dark .folder{background:var(--card)}
+
+/* ===== Subtle background polish ===== */
+body:not(.dark){background:linear-gradient(180deg,#f7f9fc 0%,#eef2f8 100%)}
+.card, .mini-card, .kpi, .subject-card{border-radius:14px}
+.wrap{max-width:1140px}
+h1{letter-spacing:-.4px}

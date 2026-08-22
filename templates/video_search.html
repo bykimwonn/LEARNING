@@ -15,6 +15,20 @@
   </form>
 </div>
 
+{% if notice %}
+<div class="hintbox" style="background:#fff7ed;border:1px solid #f0c36d">
+  <b>🔍 Please search for educational content.</b>
+  <div class="small" style="margin-top:4px">{{ notice }}</div>
+  <div class="small muted" style="margin-top:4px">Try searching for a subject, topic or concept —
+     e.g. "photosynthesis", "linear equations", "map reading".</div>
+</div>
+{% elif query and not is_edu %}
+<div class="hintbox" style="background:#fff7ed;border:1px solid #f0c36d">
+  <b>🔍 Please search for educational content only.</b>
+  <div class="small muted" style="margin-top:4px">This platform is for learning. Try a subject, topic or concept.</div>
+</div>
+{% endif %}
+
 {% if videos %}
 <div class="grid g2">
   {% for v in videos %}
