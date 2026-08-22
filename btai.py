@@ -296,6 +296,40 @@ Return STRICT JSON: {{"query": "concise search phrase (5-10 words)"}}"""
     return {"title": query, "url": embed, "watch_url": watch, "query": query}
 
 
+def search_videos(query, max_results=12):
+    """Search YouTube for videos matching a query. Returns list of
+    {title, url, watch_url, thumbnail, channel}. Falls back to search embed."""
+    key = (os.environ.get("YOUTUBE_API_KEY") or "").strip()
+    videos = []
+    if key:
+        try:
+            import urllib.parse
+            import urllib.request
+            url = ("https://www.googleapis.com/youtube/v3/search?"
+                   "part=snippet&type=video&videoEmbeddable=true&maxResults=%d"
+                   "&q=%s&key=%s" % (max_results, urllib.parse.quote(query), key))
+            with urllib.request.urlopen(url, timeout=12) as resp:
+                data = json.loads(resp.read().decode())
+            for it in data.get("items") or []:
+                vid = it.get("id", {}).get("videoId")
+                sn = it.get("snippet", {})
+                if vid:
+                    videos.append({"title": sn.get("title", ""),
+                                   "url": f"https://www.youtube.com/embed/{vid}",
+                                   "watch_url": f"https://www.youtube.com/watch?v={vid}",
+                                   "thumbnail": (sn.get("thumbnails") or {}).get("medium", {}).get("url", ""),
+                                   "channel": sn.get("channelTitle", "")})
+        except Exception as e:
+            print(f"[btai] video search failed ({type(e).__name__}): {str(e)[:80]}")
+    if not videos:
+        # fallback search embed
+        q = query.replace(" ", "+")
+        videos = [{"title": query, "url": f"https://www.youtube.com/embed?listType=search&list={q}&index=1",
+                   "watch_url": f"https://www.youtube.com/results?search_query={q}",
+                   "thumbnail": "", "channel": ""}]
+    return videos
+
+
 def _youtube_search(subject, topic=""):
     """Use the YouTube Data API to fetch a real embeddable lesson video.
     Returns None on any failure (no key, network, API error)."""
@@ -390,6 +424,48 @@ def _youtube_song(title, artist=""):
         print(f"[btai] YouTube song API failed ({type(e).__name__}): {str(e)[:100]}")
         return None
     return None
+
+
+# Common music genres (worldwide + regional) for one-click genre playlists
+MUSIC_GENRES = [
+    "Amapiano", "Afrobeats", "Gqom", "House", "Hip Hop", "R&B", "Reggae",
+    "Dancehall", "Gospel", "Jazz", "Classical", "Lofi", "Pop", "Rock",
+    "Dance", "Electronic", "Soul", "Country", "Bongo Flava", "Highlife",
+    "Sungura", "Rhumba", "Techno", "Afro Pop",
+]
+
+
+def genre_playlist(genre, location="", num=12):
+    """Build a playlist for a one-click genre. If location is set, mix in
+    'new songs in <location>' for the 'new in your country' feature.
+    Returns list of {title, artist, url, watch_url}."""
+    import random
+    query = genre
+    if location:
+        query = f"{genre} {location}"
+    songs = []
+    seen = set()
+    for i in range(num):
+        extra = random.choice(["", "mix", "2024", "latest", "best of"])
+        q = f"{query} {extra}".strip()
+        song = _youtube_song(q, "")
+        if song and song["url"] not in seen:
+            seen.add(song["url"])
+            songs.append(song)
+    return songs or recommend_playlist(location or genre, "break")
+
+
+def new_songs_playlist(location):
+    """Playlist of the newest trending songs in the user's country/location."""
+    query = f"new songs {location} 2024 latest" if location else "new songs latest playlist"
+    songs = []
+    seen = set()
+    for i in range(12):
+        song = _youtube_song(query, "")
+        if song and song["url"] not in seen:
+            seen.add(song["url"])
+            songs.append(song)
+    return songs or recommend_playlist(location or "pop", "break")
 
 
 def _fallback_playlist(interests, mode):

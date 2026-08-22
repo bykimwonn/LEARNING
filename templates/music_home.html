@@ -3,42 +3,46 @@
 {% block content %}
 <div class="center" style="margin:30px 0">
   <h1>🎵 BT AI Music</h1>
-  <p class="muted">Tell BT AI your favourite artists or songs. During breaks, it'll pick from
-     them automatically and play them for you. Calm focus sounds play while you study.</p>
+  <p class="muted">Pick a genre to instantly play its latest hits, or let BT AI play music
+     picked from your favourites and taste.</p>
 </div>
 
 <div class="grid g2">
   <div class="card">
-    <h2>⭐ Add your favourites</h2>
-    <p class="small muted">Type an artist or a song. BT AI uses these for your break playlists.</p>
+    <h2>🎧 One-click genres</h2>
+    <p class="small muted">Tap a genre to start playing its latest songs right away.</p>
+    <div class="pill-row" style="display:flex;gap:8px;flex-wrap:wrap">
+      {% for g in genres %}
+      <a class="btn small ghost" href="{{ url_for('ai_genre', genre=g) }}">{{ g }}</a>
+      {% endfor %}
+    </div>
+    <div style="margin-top:16px">
+      <a class="btn" href="{{ url_for('ai_new_songs') }}">🇿🇼 New songs in your country</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⭐ Your favourites</h2>
+    <p class="small muted">Add artists/songs. BT AI uses them for your break playlists.</p>
     <form method="post" action="{{ url_for('ai_music_favorite') }}" class="row">
       <input name="name" placeholder="e.g. Winky D, Burna Boy, Tinashe…" required style="flex:1">
       <button class="btn small">Add</button>
     </form>
     {% if favorites %}
       <table style="margin-top:14px">
-        <tr><th>Favourite</th><th></th></tr>
         {% for f in favorites %}
-        <tr>
-          <td>{{ f.name }}</td>
+        <tr><td>{{ f.name }}</td>
           <td><form method="post" action="{{ url_for('ai_music_favorite_delete', fid=f.id) }}">
-            <button class="btn small ghost">✕</button></form></td>
-        </tr>
+            <button class="btn small ghost">✕</button></form></td></tr>
         {% endfor %}
       </table>
     {% else %}
-      <p class="muted small" style="margin-top:10px">No favourites yet — add some above.</p>
+      <p class="muted small" style="margin-top:10px">No favourites yet.</p>
     {% endif %}
-  </div>
-
-  <div class="card">
-    <h2>🎬 Break &amp; Study</h2>
-    <a class="btn" href="{{ url_for('ai_break') }}">🎉 Start my break playlist</a>
-    <div style="margin-top:10px">
-      <a class="btn ghost small" href="{{ url_for('ai_playlist', mode='focus') }}">🧘 Focus playlist</a>
+    <div style="margin-top:14px">
+      <a class="btn small ghost" href="{{ url_for('ai_break') }}">🎉 Break playlist</a>
+      <a class="btn small ghost" href="{{ url_for('ai_playlist', mode='focus') }}">🧘 Focus playlist</a>
     </div>
-    <p class="small muted" style="margin-top:12px">BT AI estimates song lengths so your break
-       music finishes before your break ends.</p>
   </div>
 </div>
 {% endblock %}

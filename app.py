@@ -190,7 +190,7 @@ def register():
         email = request.form.get("email", "").strip().lower()
         pw = request.form.get("password", "")
         academic_level = request.form.get("academic_level", "").strip()
-        blend = 1 if request.form.get("blend_regional") else 0
+        location = request.form.get("location", "").strip()
         if not name or not email or not pw:
             flash("Please fill in all required fields.", "error")
         elif db.user_by_email(email):
@@ -200,7 +200,9 @@ def register():
                                  password_hash=generate_password_hash(pw),
                                  role="independent",
                                  academic_level=academic_level,
-                                 blend_regional=blend,
+                                 location=location,
+                                 blend_regional=0,
+                                 language="en",
                                  interests="",
                                  must_change_password=0, onboarded=0)
             session["uid"] = uid
@@ -763,8 +765,9 @@ def student_setup():
         interests = request.form.get("interests", "").strip()
         start = int(request.form.get("start_hour", 18))
         end = int(request.form.get("end_hour", 21))
-        language = request.form.get("language", "en")
-        db.update_user(u["id"], interests=interests, language=language,
+        location = request.form.get("location", "").strip()
+        db.update_user(u["id"], interests=interests, language="en",
+                       location=location,
                        study_start_hour=start, study_end_hour=end)
         flash("Your preferences and study schedule are saved.", "success")
         return redirect(url_for("student_home"))
@@ -1081,8 +1084,11 @@ def diagnostic(subject):
 # PRACTICE / past papers  (Phase 4/5)
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
-# BT AI TOOLS  (Gemini-powered; falls back to rule-based automatically)
+# BT AI TOOLS  (Gemini/Groq; falls back to rule-based automatically)
 # ---------------------------------------------------------------------------
+@app.context_processor
+def inject_ai_provider():
+    return {"ai_provider": btai.get_provider()}
 @app.route("/ai/chat", methods=["POST"])
 @login_required
 @role_required("school_student", "independent")
@@ -1226,7 +1232,7 @@ def ai_music():
     u = current_user()
     favs = db.list_music_favorites(u["id"])
     return render_template("music_home.html", user=u, favorites=favs,
-                           ai_enabled=btai.ai_enabled())
+                           genres=btai.MUSIC_GENRES, ai_enabled=btai.ai_enabled())
 
 
 @app.route("/ai/music/favorite", methods=["POST"])
@@ -1270,6 +1276,45 @@ def ai_break():
                            ai_enabled=btai.ai_enabled())
 
 
+@app.route("/ai/genre/<genre>")
+@login_required
+@role_required("school_student", "independent")
+def ai_genre(genre):
+    """One-click genre playlist."""
+    u = current_user()
+    location = u.get("location") or ""
+    songs = btai.genre_playlist(genre, location)
+    return render_template("playlist.html", user=u, songs=songs, mode="break",
+                           genre=genre, subject="", ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/new-songs")
+@login_required
+@role_required("school_student", "independent")
+def ai_new_songs():
+    """New songs in the user's country."""
+    u = current_user()
+    location = u.get("location") or ""
+    songs = btai.new_songs_playlist(location)
+    return render_template("playlist.html", user=u, songs=songs, mode="break",
+                           genre=f"New songs in {location or 'your country'}",
+                           subject="", ai_enabled=btai.ai_enabled())
+
+
+@app.route("/ai/video-search")
+@login_required
+@role_required("school_student", "independent")
+def ai_video_search():
+    """Visual: students search for videos and watch them."""
+    u = current_user()
+    query = request.args.get("q", "")
+    videos = []
+    if query.strip():
+        videos = btai.search_videos(query)
+    return render_template("video_search.html", user=u, query=query, videos=videos,
+                           ai_enabled=btai.ai_enabled())
+
+
 @app.route("/ai/playlist", methods=["GET", "POST"])
 @login_required
 @role_required("school_student", "independent")
@@ -1296,7 +1341,7 @@ def book_upload():
     file = request.files.get("file")
     if not file or not file.filename:
         flash("Please select a book file to upload.", "error")
-        return redirect(url_for("student_home"))
+        return redirect(url_for("student_sources"))
     size = file.seek(0, 2); file.seek(0)
     if not title:
         title = file.filename.rsplit(".", 1)[0]
@@ -1306,29 +1351,31 @@ def book_upload():
     file.save(path)
     # extract text
     ext = file.filename.lower().rsplit(".", 1)[-1] if "." in file.filename else ""
+    text = ""
     if ext == "pdf":
         text = _extract_pdf_file(path)
     elif ext in ("txt", "md"):
         text = open(path, encoding="utf-8", errors="ignore").read()
     else:
-        # fallback: try pdf extraction or decode as text
         try:
             text = _extract_pdf_file(path)
         except Exception:
             text = open(path, encoding="utf-8", errors="ignore").read()
-    if not text or not text.strip():
+    text = (text or "").strip()
+    if not text:
         flash("Could not read any text from that file. Upload a PDF or text file.", "error")
-        return redirect(url_for("student_home"))
+        return redirect(url_for("student_sources"))
+    subj = subject or "General"
     # create note + chunks
-    nid = db.add_note(title=title, subject=subject or "General", category="notes",
+    nid = db.add_note(title=title, subject=subj, category="notes",
                       owner_id=u["id"], owner_role=u["role"], class_id=u["class_id"],
                       content=text, status="processing")
     chunks = ai.chunk_content(text)
-    db.save_chunks(nid, subject or "General", chunks)
+    db.save_chunks(nid, subj, chunks)
     db.set_note_status(nid, "active", chunk_count=len(chunks))
-    if subject and subject not in db.user_subjects(u["id"]):
-        db.set_user_subjects(u["id"], db.user_subjects(u["id"]) + [subject])
-    bid = db.add_book(u["id"], title, subject or "General", file.filename, size)
+    if subj not in db.user_subjects(u["id"]):
+        db.set_user_subjects(u["id"], db.user_subjects(u["id"]) + [subj])
+    bid = db.add_book(u["id"], title, subj, file.filename, size)
     db.set_book_status(bid, "active", note_id=nid)
     flash(f"'{title}' uploaded ({size//1024} KB) and indexed into {len(chunks)} concepts.", "success")
     return redirect(url_for("student_sources"))

@@ -4,14 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}BT LEARNING{% endblock %}</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.svg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 {% if current_user %}
 <div class="top">
   <div class="wrap">
-    <a class="brand" href="{{ url_for('dashboard') }}">BT LEARNING
-      <small>Learn · Interact · Achieve</small></a>
+    <a class="brand" href="{{ url_for('dashboard') }}">
+      <span class="brand-mark">BT</span>
+      <span class="brand-txt">BT LEARNING<small>Learn · Interact · Achieve</small></span>
+    </a>
     <nav class="nav">
       {% if current_user.role == 'admin' %}
         <a href="{{ url_for('admin_home') }}">Admin Panel</a>
@@ -20,11 +24,12 @@
       {% else %}
         <a href="{{ url_for('student_home') }}">Dashboard</a>
         <a href="{{ url_for('ranking') }}">Rankings</a>
+        <a href="{{ url_for('ai_video_search') }}">Visual</a>
       {% endif %}
       <span class="pill b">ELO {{ current_user.elo }}</span>
-      <span class="pill g">🔥 {{ current_user.streak }} day streak</span>
+      <span class="pill g">🔥 {{ current_user.streak }}</span>
       <span class="pill">{{ current_user.role|replace('_',' ')|title }}</span>
-      <a href="{{ url_for('logout') }}">Log out</a>
+      <a class="logout" href="{{ url_for('logout') }}">Log out</a>
     </nav>
   </div>
 </div>

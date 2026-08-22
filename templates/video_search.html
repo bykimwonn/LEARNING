@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Visual · Video Search · BT LEARNING{% endblock %}
+{% block content %}
+<div class="spread" style="margin-top:16px">
+  <div><h1>🎬 Visual — Find Videos to Learn</h1>
+    <p class="muted">Search for any topic and watch videos right here. If a video won't play
+       embedded, tap <b>Open on YouTube</b>.</p></div>
+  <a class="btn small ghost" href="{{ url_for('student_home') }}">← Back</a>
+</div>
+
+<div class="card">
+  <form method="get" action="{{ url_for('ai_video_search') }}" class="row">
+    <input name="q" value="{{ query }}" placeholder="Search anything to learn… e.g. photosynthesis, linear equations" style="flex:1" required>
+    <button class="btn">🔍 Search</button>
+  </form>
+</div>
+
+{% if videos %}
+<div class="grid g2">
+  {% for v in videos %}
+  <div class="card">
+    <div class="video-box" style="overflow:hidden;border-radius:10px;margin-bottom:10px">
+      <iframe src="{{ v.url }}&rel=0" title="{{ v.title }}" allowfullscreen
+        referrerpolicy="origin-when-cross-origin" style="width:100%;aspect-ratio:16/9;border:0"></iframe>
+    </div>
+    <h3 style="font-size:15px;margin:0 0 4px">{{ v.title }}</h3>
+    {% if v.channel %}<p class="small muted" style="margin:0 0 8px">{{ v.channel }}</p>{% endif %}
+    {% if v.watch_url %}
+      <a class="btn small ghost" href="{{ v.watch_url }}" target="_blank" rel="noopener">▶ Open on YouTube</a>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card"><p class="muted">Search above to find learning videos.</p></div>
+{% endif %}
+{% endblock %}

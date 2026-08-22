@@ -26,11 +26,9 @@
       </select>
       <p class="small muted">This sets the AI's baseline vocabulary and complexity.</p>
 
-      <label>🗣️ Language preference</label>
-      <label class="optlabel" style="cursor:pointer">
-        <input type="checkbox" name="blend_regional" value="1" checked>
-        Blend English with regional (Shona) expressions to clarify difficult concepts
-      </label>
+      <label>📍 Location (country / city)</label>
+      <input name="location" placeholder="e.g. Harare, Zimbabwe" value="{{ request.form.get('location','') }}">
+      <p class="small muted">This helps BT AI find music and videos relevant to your area.</p>
 
       <div style="margin-top:18px"><button class="btn" style="width:100%">Create account → Interests</button></div>
     </form>

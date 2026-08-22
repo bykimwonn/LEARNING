@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1f3a"/>
+      <stop offset="100%" stop-color="#143d63"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <!-- open book hint -->
+  <path d="M14 20 Q32 12 50 20 V48 Q32 40 14 48 Z" fill="#ffffff" opacity="0.12"/>
+  <path d="M18 22 Q32 16 46 22 V46 Q32 40 18 46 Z" fill="#ffffff" opacity="0.08"/>
+  <!-- graduation cap -->
+  <path d="M32 18 L52 26 L32 34 L12 26 Z" fill="#b08d3e"/>
+  <path d="M20 31 v7 c0 3 6 6 12 6 s12 -3 12 -6 v-7 l-12 5 Z" fill="#b08d3e" opacity="0.75"/>
+  <!-- BT text -->
+  <text x="32" y="52" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="800"
+        fill="#ffffff" text-anchor="middle" letter-spacing="1">BT</text>
+</svg>
