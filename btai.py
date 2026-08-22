@@ -238,9 +238,16 @@ def _fallback_explain(content, interests):
 # 3) Video recommendation
 # ---------------------------------------------------------------------------
 def recommend_video(subject, topic="", interests=""):
-    """Return {title, url} of a good supporting lesson video.
-    Uses a single-video search embed (plays the top matching video), NOT a playlist,
-    so it shows an actual lesson rather than a music/playlist mix."""
+    """Return {title, url, watch_url} of a good supporting lesson video.
+    Uses the YouTube Data API (if YOUTUBE_API_KEY is set) to find a real,
+    targeted lesson video with a valid embed ID. Falls back to a search embed
+    if no API key is available or the API fails."""
+    # ---- Try the real YouTube Data API first (needs YOUTUBE_API_KEY) ----
+    api_video = _youtube_search(subject, topic)
+    if api_video:
+        return api_video
+
+    # ---- Fallback: single-video search embed (no API key needed) ----
     base = ai_engine.video_for(subject)
     prompt = f"""Pick ONE great YouTube search phrase for a student learning '{subject}'
 {topic and 'on "' + topic + '"' or ''}. Interests: {interests or 'none'}.
@@ -255,6 +262,36 @@ Return STRICT JSON: {{"query": "concise search phrase (5-10 words)"}}"""
     embed = f"https://www.youtube.com/embed?listType=search&list={q}&index=1"
     watch = f"https://www.youtube.com/results?search_query={q}"
     return {"title": query, "url": embed, "watch_url": watch, "query": query}
+
+
+def _youtube_search(subject, topic=""):
+    """Use the YouTube Data API to fetch a real embeddable lesson video.
+    Returns None on any failure (no key, network, API error)."""
+    key = (os.environ.get("YOUTUBE_API_KEY") or "").strip()
+    if not key:
+        return None
+    query = f"{topic or subject} lesson tutorial"
+    try:
+        import urllib.parse
+        import urllib.request
+        url = ("https://www.googleapis.com/youtube/v3/search?"
+               "part=snippet&type=video&videoEmbeddable=true&maxResults=5"
+               f"&q={urllib.parse.quote(query)}&key={key}")
+        with urllib.request.urlopen(url, timeout=12) as resp:
+            data = json.loads(resp.read().decode())
+        items = data.get("items") or []
+        for it in items:
+            vid = it.get("id", {}).get("videoId")
+            title = it.get("snippet", {}).get("title", "")
+            if vid and title:
+                return {"title": title,
+                        "url": f"https://www.youtube.com/embed/{vid}",
+                        "watch_url": f"https://www.youtube.com/watch?v={vid}",
+                        "video_id": vid}
+    except Exception as e:
+        print(f"[btai] YouTube API failed ({type(e).__name__}): {str(e)[:100]}")
+        return None
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -281,11 +318,46 @@ Return STRICT JSON (no markdown): an array of objects:
             title = str(s.get("title", "")).strip()
             artist = str(s.get("artist", "")).strip()
             if title:
-                q = f"{title} {artist}".strip().replace(" ", "+")
-                out.append({"title": title, "artist": artist,
-                            "url": f"https://www.youtube.com/embed?listType=search&list={q}&index=1",
-                            "watch_url": f"https://www.youtube.com/results?search_query={q}"})
+                # try to get a real video ID from YouTube API
+                real = _youtube_song(title, artist)
+                if real:
+                    out.append(real)
+                else:
+                    q = f"{title} {artist}".strip().replace(" ", "+")
+                    out.append({"title": title, "artist": artist,
+                                "url": f"https://www.youtube.com/embed?listType=search&list={q}&index=1",
+                                "watch_url": f"https://www.youtube.com/results?search_query={q}"})
     return out or _fallback_playlist(interests, mode)
+
+
+def _youtube_song(title, artist=""):
+    """Use the YouTube Data API to find a real music video. Returns None on failure."""
+    key = (os.environ.get("YOUTUBE_API_KEY") or "").strip()
+    if not key:
+        return None
+    query = f"{title} {artist}".strip() or title
+    try:
+        import urllib.parse
+        import urllib.request
+        url = ("https://www.googleapis.com/youtube/v3/search?"
+               "part=snippet&type=video&videoEmbeddable=true&maxResults=1"
+               f"&q={urllib.parse.quote(query)}&key={key}")
+        with urllib.request.urlopen(url, timeout=12) as resp:
+            data = json.loads(resp.read().decode())
+        items = data.get("items") or []
+        if not items:
+            return None
+        vid = items[0].get("id", {}).get("videoId")
+        song_title = items[0].get("snippet", {}).get("title", title)
+        if vid:
+            return {"title": song_title, "artist": artist,
+                    "url": f"https://www.youtube.com/embed/{vid}",
+                    "watch_url": f"https://www.youtube.com/watch?v={vid}",
+                    "video_id": vid}
+    except Exception as e:
+        print(f"[btai] YouTube song API failed ({type(e).__name__}): {str(e)[:100]}")
+        return None
+    return None
 
 
 def _fallback_playlist(interests, mode):
